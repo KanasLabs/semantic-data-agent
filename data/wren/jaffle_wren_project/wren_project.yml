@@ -1,0 +1,11 @@
+schema_version: 5
+name: jaffle_shop
+version: '0.1'
+catalog: wren
+schema: public
+data_source: duckdb
+profile: jaffle_shop
+dbt:
+  project_dir: ..\jaffle_shop_duckdb
+  profile: jaffle_shop
+  target: dev

@@ -1,0 +1,30 @@
+name: stg_customers
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: stg_customers
+columns:
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    dbt_tests: not_null,unique
+    dbt_test_status: verified
+  is_primary_key: true
+- name: first_name
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties: {}
+- name: last_name
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties: {}
+cached: false
+properties:
+  dbt_layer: staging
+  dbt_unique_id: model.jaffle_shop.stg_customers
+  dbt_resource_type: model
+primary_key: customer_id

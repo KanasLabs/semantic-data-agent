@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Subagent BIRD Mini-Dev Smoke5 测试案例</title>
+  <style>
+    :root {
+      --bg: #f5f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5c6670;
+      --line: #d9e1e8;
+      --accent: #146b5d;
+      --accent-soft: #e6f2ef;
+      --warn: #8a5a00;
+      --warn-soft: #fff3cf;
+      --bad: #a13c36;
+      --bad-soft: #fae8e6;
+      --code-bg: #101820;
+      --code-text: #edf3f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .wrap {
+      width: min(1160px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+    .hero { padding: 34px 0 26px; }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 30px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 34px 0 14px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+    p { margin: 0 0 12px; }
+    main { padding: 26px 0 48px; }
+    footer {
+      padding: 0 0 34px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .subtitle {
+      max-width: 920px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .meta-grid, .case-grid, .context-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .meta-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 22px;
+    }
+    .case-grid, .context-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .panel, .meta, .case {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .panel, .case { padding: 18px; }
+    .meta {
+      padding: 12px 14px;
+      background: #fbfcfd;
+    }
+    .meta span, .label {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .meta span {
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .meta strong {
+      font-size: 14px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    .note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      background: var(--accent-soft);
+    }
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+    }
+    .bad-note {
+      border-left-color: var(--bad);
+      background: var(--bad-soft);
+    }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .pill.warn { background: var(--warn-soft); color: var(--warn); }
+    .pill.bad { background: var(--bad-soft); color: var(--bad); }
+    pre {
+      margin: 8px 0 0;
+      padding: 13px 14px;
+      overflow: auto;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-size: 13px;
+      line-height: 1.5;
+      tab-size: 2;
+    }
+    code {
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #eef2f5;
+      color: #293642;
+      font-size: 13px;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .step {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+    @media (max-width: 860px) {
+      .wrap { width: min(100% - 24px, 1160px); }
+      .meta-grid, .case-grid, .context-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <h1>Data Subagent BIRD Mini-Dev Smoke5 测试案例</h1>
+      <p class="subtitle">
+        本页面整理 2026-07-09 的真实 BIRD Mini-Dev `debit_card_specializing` smoke5 结果。
+        三个代表案例分别对应 auto-pass、runtime 成功但 needs_triage、DeepSeek 空响应失败。
+      </p>
+      <div class="meta-grid">
+        <div class="meta"><span>Run ID</span><strong>20260709-165501-bird_mini_dev_debit_card_specializing_smoke5</strong></div>
+        <div class="meta"><span>数据源</span><strong>BIRD Mini-Dev / debit_card_specializing</strong></div>
+        <div class="meta"><span>Wren Project</span><strong>data/wren/bird_debit_card_specializing_wren_project</strong></div>
+        <div class="meta"><span>结果</span><strong>5 total / 4 pass / 1 fail</strong></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>先讲清楚：这里的 Wren context layer 是谁生成的？</h2>
+      <div class="panel">
+        <p>
+          对 BIRD SQLite 数据库这条线，当前不是 WrenAI 自己从 SQLite 自动推理出完整业务 MDL。
+          当前 WrenAI CLI 的 `context import` 主要支持 dbt，不支持直接把任意 SQLite 数据库自动导入成业务语义层。
+        </p>
+        <p>
+          所以我们做了一个最小转换器：读取 BIRD SQLite schema，把表、字段、基础类型、部分 foreign key 转成 Wren project 文件；
+          再把 SQLite 数据复制成 DuckDB，让 WrenAI CLI 读取这个 Wren project，并执行 `context validate/build`、`dry-plan`、`dry-run`、`query`。
+        </p>
+        <div class="note">
+          换句话说：context 文件是我们脚本生成并写入 `data/wren/bird_debit_card_specializing_wren_project/` 的；
+          但后续读取 context、展开 SQL、验证 SQL、执行查询的是实际安装的 WrenAI CLI，不是 mock。
+        </div>
+        <pre><code>BIRD SQLite
+-> scripts/setup_bird_mini_dev_eval.py
+-> scripts/prepare_sqlite_wren_project.py
+-> generated Wren project files
+-> WrenAI CLI context validate/build/dry-plan/dry-run/query
+-> Data Subagent eval + trace</code></pre>
+      </div>
+    </section>
+
+    <section>
+      <h2>当前自动生成的 Wren Context Layer 内容</h2>
+      <div class="context-grid">
+        <div class="panel">
+          <h3>Project 配置</h3>
+          <pre><code>schema_version: 5
+name: bird_debit_card_specializing
+version: '0.1'
+catalog: wren
+schema: public
+data_source: duckdb
+profile: bird_debit_card_specializing</code></pre>
+        </div>
+        <div class="panel">
+          <h3>自动生成规则</h3>
+          <pre><code>Source SQLite:
+data/external/bird_mini_dev/.../debit_card_specializing.sqlite
+
+Runtime DuckDB:
+data/wren/bird_debit_card_specializing.duckdb
+
+Tables: 5
+Relationships: 2
+
+Rule:
+Use read-only analytical SQL.</code></pre>
+        </div>
+        <div class="panel">
+          <h3>customers 模型</h3>
+          <pre><code>name: customers
+table_reference:
+  catalog: bird_debit_card_specializing
+  schema: main
+  table: customers
+columns:
+  CustomerID: BIGINT, primary_key
+  Segment: TEXT
+  Currency: TEXT</code></pre>
+        </div>
+        <div class="panel">
+          <h3>yearmonth 模型</h3>
+          <pre><code>name: yearmonth
+table_reference:
+  catalog: bird_debit_card_specializing
+  schema: main
+  table: yearmonth
+columns:
+  CustomerID: BIGINT
+  Date: TEXT
+  Consumption: DOUBLE</code></pre>
+        </div>
+      </div>
+      <div class="note warning">
+        当前 relationship 自动生成仍有 bug：`yearmonth_to_customers_*` 的 condition 里出现了
+        `"customers"."None"`。这说明 BIRD 这条线的 context 还是最小可运行版本，不是高质量业务 semantic layer。
+        这次成功案例主要靠 DeepSeek 生成了显式 join，而不是靠 Wren relationship 自动补 join。
+      </div>
+    </section>
+
+    <section>
+      <h2>Smoke5 总览</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类别</th>
+            <th>数量</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>auto-pass</td>
+            <td>2/5</td>
+            <td>runtime 成功，预测结果和 gold SQL 执行结果一致。</td>
+          </tr>
+          <tr>
+            <td>runtime 成功但 needs_triage</td>
+            <td>2/5</td>
+            <td>SQL 可执行，Wren dry-run/query 成功，但预测结果和 gold 结果不同，需要人工归因。</td>
+          </tr>
+          <tr>
+            <td>DeepSeek 空响应失败</td>
+            <td>1/5</td>
+            <td>DeepSeek 返回空或不可解析 SQL JSON，导致没有进入 dry-plan/dry-run。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>案例 1：auto-pass</h2>
+      <article class="case">
+        <div class="pill-row">
+          <span class="pill">eval_id: bird_debit_card_specializing_0001</span>
+          <span class="pill">trace_73da8bceb38d4ed68bf72244d8e5f2e3</span>
+          <span class="pill">review_status: auto_pass</span>
+        </div>
+        <h3>问题</h3>
+        <pre><code>What is the ratio of customers who pay in EUR against customers who pay in CZK?
+
+Evidence:
+ratio = count(Currency = 'EUR') / count(Currency = 'CZK')</code></pre>
+
+        <h3>链路阶段输出</h3>
+        <div class="flow">
+          <div class="step">
+            <strong>1. 清晰度检查</strong>
+            <p>通过。本地 heuristic 判定问题长度和字符条件满足，继续执行。</p>
+          </div>
+          <div class="step">
+            <strong>2. Wren context 获取</strong>
+            <pre><code>models: customers, gasstations, products, transactions_1k, yearmonth
+relationships: yearmonth_to_customers_0, yearmonth_to_customers_1
+used columns: customers.Currency</code></pre>
+          </div>
+          <div class="step">
+            <strong>3. DeepSeek generate_sql</strong>
+            <pre><code>SELECT CAST(SUM(CASE WHEN Currency = 'EUR' THEN 1 ELSE 0 END) AS FLOAT)
+ / NULLIF(SUM(CASE WHEN Currency = 'CZK' THEN 1 ELSE 0 END), 0) AS ratio
+FROM customers</code></pre>
+          </div>
+          <div class="step">
+            <strong>4. Guardrail / Wren dry-plan / Wren dry-run</strong>
+            <pre><code>guardrail: pass
+dry-plan: pass
+dry-run: OK</code></pre>
+          </div>
+          <div class="step">
+            <strong>5. Wren dry-plan 展开片段</strong>
+            <pre><code>WITH customers AS (
+  SELECT "wren_src_customers"."Currency" AS Currency
+  FROM bird_debit_card_specializing."main".customers AS __source
+)
+SELECT CAST(SUM(CASE WHEN Currency = 'EUR' THEN 1 ELSE 0 END) AS REAL)
+ / NULLIF(SUM(CASE WHEN Currency = 'CZK' THEN 1 ELSE 0 END), 0) AS ratio
+FROM customers</code></pre>
+          </div>
+          <div class="step">
+            <strong>6. Wren execute / 结果总结</strong>
+            <pre><code>rows: [{"ratio": 0.0657276958}]
+answer: The ratio ... is approximately 0.066.</code></pre>
+          </div>
+          <div class="step">
+            <strong>7. Gold 对比</strong>
+            <pre><code>predicted result: 0.06572769582271576
+gold equivalent result: 0.06572769582271576
+execution_match: true</code></pre>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section>
+      <h2>案例 2：runtime 成功但 needs_triage</h2>
+      <article class="case">
+        <div class="pill-row">
+          <span class="pill warn">eval_id: bird_debit_card_specializing_0003</span>
+          <span class="pill warn">trace_9e4f4e17a9c04474bda41a7ab49aa190</span>
+          <span class="pill warn">review_status: needs_triage</span>
+        </div>
+        <h3>问题</h3>
+        <pre><code>What was the average monthly consumption of customers in SME for the year 2013?
+
+Evidence:
+Average Monthly consumption = AVG(Consumption) / 12
+Year 2013 can be presented as Between 201301 And 201312</code></pre>
+
+        <h3>链路阶段输出</h3>
+        <div class="flow">
+          <div class="step">
+            <strong>1. Wren context 获取</strong>
+            <pre><code>used models:
+  customers(CustomerID, Segment)
+  yearmonth(CustomerID, Date, Consumption)</code></pre>
+          </div>
+          <div class="step">
+            <strong>2. DeepSeek generate_sql</strong>
+            <pre><code>SELECT AVG(ym.Consumption)
+FROM yearmonth ym
+JOIN customers c ON ym.CustomerID = c.CustomerID
+WHERE c.Segment = 'SME'
+  AND ym.Date BETWEEN '201301' AND '201312'</code></pre>
+          </div>
+          <div class="step">
+            <strong>3. Guardrail / Wren dry-plan / Wren dry-run</strong>
+            <pre><code>guardrail: pass
+dry-plan: pass
+dry-run: OK</code></pre>
+          </div>
+          <div class="step">
+            <strong>4. Wren execute / 结果总结</strong>
+            <pre><code>rows: [{"avg(ym.Consumption)": 5519.4751714451}]
+answer: 5519.4751714451</code></pre>
+          </div>
+          <div class="step">
+            <strong>5. Gold SQL</strong>
+            <pre><code>SELECT AVG(T2.Consumption) / 12
+FROM customers AS T1
+INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID
+WHERE SUBSTR(T2.Date, 1, 4) = '2013'
+  AND T1.Segment = 'SME'</code></pre>
+          </div>
+          <div class="step">
+            <strong>6. Gold 对比</strong>
+            <pre><code>predicted result: 5519.475171445075
+gold equivalent result: 459.9562642870896
+execution_match: false
+review_status: needs_triage</code></pre>
+          </div>
+        </div>
+        <div class="note warning">
+          初步归因：DeepSeek 生成的 SQL 没有执行 evidence 中的 `/ 12`。这更像“业务 evidence 遵循不足”，
+          但仍要人工确认 gold 的业务定义是否合理，不能只按单个 gold mismatch 盲目改 prompt。
+        </div>
+      </article>
+    </section>
+
+    <section>
+      <h2>案例 3：DeepSeek 空响应失败</h2>
+      <article class="case">
+        <div class="pill-row">
+          <span class="pill bad">eval_id: bird_debit_card_specializing_0005</span>
+          <span class="pill bad">trace_3d6666ca72ef486380c7696a419a7494</span>
+          <span class="pill bad">status: failed</span>
+        </div>
+        <h3>问题</h3>
+        <pre><code>Which year recorded the most consumption of gas paid in CZK?
+
+Evidence:
+The first 4 strings of the Date values in the yearmonth table can represent year.</code></pre>
+
+        <h3>链路阶段输出</h3>
+        <div class="flow">
+          <div class="step">
+            <strong>1. Wren context 获取</strong>
+            <pre><code>available models:
+  customers(CustomerID, Segment, Currency)
+  yearmonth(CustomerID, Date, Consumption)</code></pre>
+          </div>
+          <div class="step">
+            <strong>2. DeepSeek generate_sql</strong>
+            <pre><code>raw response: ''
+parse result: failed
+error: Failed to parse LLM JSON response: ''</code></pre>
+          </div>
+          <div class="step">
+            <strong>3. 后续 Wren 阶段</strong>
+            <pre><code>sql_attempts: []
+dry_plan_results: []
+dry_run_results: []
+final_sql: null
+row_count: 0</code></pre>
+          </div>
+          <div class="step">
+            <strong>4. Gold SQL 可执行</strong>
+            <pre><code>SELECT SUBSTR(T2.Date, 1, 4)
+FROM customers AS T1
+INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID
+WHERE T1.Currency = 'CZK'
+GROUP BY SUBSTR(T2.Date, 1, 4)
+ORDER BY SUM(T2.Consumption) DESC
+LIMIT 1</code></pre>
+          </div>
+          <div class="step">
+            <strong>5. Gold 结果</strong>
+            <pre><code>gold result: 2013</code></pre>
+          </div>
+        </div>
+        <div class="note bad-note">
+          初步归因：这不是 Wren dry-run 失败，也不是数据库不可执行，而是 LLM 返回空响应导致 SQL 生成阶段失败。
+          下一步应增加 SQL generation 的 retry/backoff，并记录 raw response 便于追踪。
+        </div>
+      </article>
+    </section>
+
+    <section>
+      <h2>当前结论</h2>
+      <div class="panel">
+        <p>
+          BIRD 这条线已经验证了真实 WrenAI CLI 能读取我们生成的 Wren project，并完成 dry-plan、dry-run、execute。
+          但这个 context layer 目前只是 schema-level 最小语义层，还不是高质量业务语义层。
+        </p>
+        <p>
+          下一步不应该只改 prompt。更合理的是先修 relationship 生成 bug，再把 BIRD evidence 和高频 gold SQL 模式沉淀成
+          Wren knowledge/rules/examples，最后再跑 smoke5 和 30-case 回归。
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    Generated from local Data Subagent BIRD smoke run on 2026-07-09.
+  </footer>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Subagent MVP 真实链路与 ReAct 修复案例</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #18202a;
+      --muted: #5c6876;
+      --line: #dfe5eb;
+      --accent: #126b5d;
+      --accent-soft: #e5f3ef;
+      --blue: #205f9f;
+      --blue-soft: #e8f1fb;
+      --warn: #8a5a00;
+      --warn-soft: #fff2cf;
+      --code-bg: #101820;
+      --code-text: #e9f0f5;
+      --ok: #1f7a4d;
+      --bad: #a13d35;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 36px 0 28px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 30px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 14px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    main {
+      padding: 26px 0 48px;
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 0 0 34px;
+    }
+
+    .subtitle {
+      max-width: 900px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .meta-grid,
+    .route-grid,
+    .summary-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .meta-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 22px;
+    }
+
+    .route-grid,
+    .summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .panel,
+    .meta {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .meta {
+      padding: 12px 14px;
+      background: #fbfcfd;
+    }
+
+    .meta span,
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta span {
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .meta strong {
+      font-size: 14px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .pill.blue {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .status-ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .status-bad {
+      color: var(--bad);
+      font-weight: 700;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .num {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .num.blue {
+      background: var(--blue);
+    }
+
+    .label {
+      margin: 6px 0 8px;
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #3b2a00;
+    }
+
+    pre {
+      margin: 8px 0 0;
+      padding: 13px 14px;
+      border-radius: 8px;
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-size: 13px;
+      line-height: 1.5;
+      tab-size: 2;
+    }
+
+    code {
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef2f5;
+      font-size: 13px;
+      color: #2b3642;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    @media (max-width: 820px) {
+      .wrap {
+        width: min(100% - 24px, 1120px);
+      }
+
+      .meta-grid,
+      .route-grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <h1>Data Subagent MVP 真实链路与 ReAct 修复案例</h1>
+      <p class="subtitle">
+        本报告整理两个真实运行结果：一个是正常成功路径，另一个是通过注入坏 SQL 强制触发的真实 ReAct 修复路径。两条路径都使用 WrenAI CLI、DeepSeek 和 Wren quickstart 的 jaffle_shop DuckDB 数据源。
+      </p>
+      <div class="meta-grid" aria-label="case metadata">
+        <div class="meta">
+          <span>数据源</span>
+          <strong>Wren quickstart jaffle_shop / DuckDB</strong>
+        </div>
+        <div class="meta">
+          <span>LLM Provider</span>
+          <strong>DeepSeek</strong>
+        </div>
+        <div class="meta">
+          <span>Semantic / Execution Layer</span>
+          <strong>WrenAI CLI</strong>
+        </div>
+        <div class="meta">
+          <span>Trace Store</span>
+          <strong>data/traces/data_subagent.jsonl</strong>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>两条链路总览</h2>
+      <div class="route-grid">
+        <div class="panel">
+          <h3>链路 A：正常成功路径</h3>
+          <p>用户直接提问，DeepSeek 首轮生成 SQL，Wren dry-plan 和 dry-run 都通过，然后执行查询并总结结果。</p>
+          <div class="pill-row">
+            <span class="pill">一次生成成功</span>
+            <span class="pill">无 repair</span>
+            <span class="pill">trace_f4babfdf...</span>
+          </div>
+          <pre><code>Question
+-> clarity check
+-> Wren context + examples
+-> DeepSeek generate_sql
+-> SQL guardrail
+-> Wren dry-plan
+-> Wren dry-run OK
+-> Wren execute
+-> DeepSeek summarize
+-> save trace</code></pre>
+        </div>
+        <div class="panel">
+          <h3>链路 B：真实 ReAct 修复路径</h3>
+          <p>为了稳定展示 ReAct，第一轮 SQL 由 debug 参数故意注入错误；随后真实 Wren dry-run 报错，DeepSeek 根据错误修复 SQL，再由 Wren 执行成功。</p>
+          <div class="pill-row">
+            <span class="pill blue">触发 repair</span>
+            <span class="pill blue">真实 Wren 错误</span>
+            <span class="pill blue">trace_8123219a...</span>
+          </div>
+          <pre><code>Question
+-> clarity check
+-> Wren context + examples
+-> inject bad SQL
+-> SQL guardrail
+-> Wren dry-run error
+-> DeepSeek repair_sql
+-> Wren dry-run OK
+-> Wren execute
+-> DeepSeek summarize
+-> save trace</code></pre>
+        </div>
+      </div>
+      <div class="note warning">
+        <strong>说明：</strong>链路 B 只有第一轮 SQL 是人为注入，用于稳定触发修复分支；Wren 报错、DeepSeek 修复、Wren dry-run、Wren execute 和结果总结都是真实运行。
+      </div>
+    </section>
+
+    <section>
+      <h2>链路 A：正常成功路径</h2>
+      <div class="summary-grid">
+        <div class="panel">
+          <h3>输入与最终答案</h3>
+          <p><strong>问题：</strong>收入最高的前5个客户是谁？</p>
+          <table>
+            <thead>
+              <tr>
+                <th>排名</th>
+                <th>客户</th>
+                <th>Customer Lifetime Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td>Howard R.</td><td>99.0</td></tr>
+              <tr><td>2</td><td>Kathleen P.</td><td>65.0</td></tr>
+              <tr><td>3</td><td>Norma C.</td><td>64.0</td></tr>
+              <tr><td>4</td><td>Christina W.</td><td>57.0</td></tr>
+              <tr><td>5</td><td>Rose M.</td><td>57.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>最终 SQL 与 Trace</h3>
+          <pre><code>SELECT first_name, last_name, customer_lifetime_value
+FROM customers
+ORDER BY customer_lifetime_value DESC
+LIMIT 5</code></pre>
+          <pre><code>{
+  "status": "success",
+  "trace_id": "trace_f4babfdf564c4efdb646fca1e2141505",
+  "row_count": 5
+}</code></pre>
+        </div>
+      </div>
+
+      <h2>链路 A 阶段输出</h2>
+      <div class="timeline">
+        <article class="step">
+          <div class="num">0</div>
+          <div>
+            <h3>运行前预检：Wren doctor</h3>
+            <p>这是演示前的 smoke check，不是每次在线问数必跑步骤。它确认 Wren project 能读取 jaffle_shop semantic layer，并且 dry-run 可用。</p>
+            <p class="label">负责人：WrenCliAdapter 调用 WrenAI CLI</p>
+            <pre><code>{
+  "models": ["customers", "orders", "stg_customers", "stg_orders", "stg_payments"],
+  "dry_run_ok": true,
+  "dry_run_message": "OK"
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">1</div>
+          <div>
+            <h3>问题清晰度检查</h3>
+            <p>MVP 判断问题满足最低可处理条件，因此继续执行。这个阶段当前不是 DeepSeek 判断，而是本地启发式函数。</p>
+            <p class="label">负责人：DataSubagent._is_clear_enough()</p>
+            <pre><code>def _is_clear_enough(question: str) -> bool:
+    stripped = question.strip()
+    return len(stripped) >= 4 and any(char.isalpha() for char in stripped)</code></pre>
+            <div class="note">
+              这个规则只拦截空问题、过短问题、纯符号或纯数字问题。后续应升级为“本地规则 + LLM 澄清判断 + Wren 字段/指标匹配”。
+            </div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">2</div>
+          <div>
+            <h3>Wren 上下文与示例召回</h3>
+            <p>MVP 从 Wren semantic layer 读取模型、关系，并从 Wren project 的 knowledge/sql 读取 NL-SQL 示例。</p>
+            <p class="label">负责人：WrenCliAdapter.get_context() / recall_examples()</p>
+            <pre><code>{
+  "context_used": {
+    "models": ["customers", "orders", "stg_customers", "stg_orders", "stg_payments"],
+    "relationships": ["orders_to_customers"]
+  },
+  "examples_used": [
+    "amount by payment_method in stg_payments",
+    "credit_card_amount by order_date in orders",
+    "List all customers"
+  ]
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">3</div>
+          <div>
+            <h3>DeepSeek 生成 SQL</h3>
+            <p>DeepSeek 接收用户问题、Wren semantic context 和确认过的 NL-SQL 示例，生成 Wren model-layer SQL。</p>
+            <p class="label">负责人：DeepSeekLLMAdapter.generate_sql()</p>
+            <pre><code>SELECT first_name, last_name, customer_lifetime_value
+FROM customers
+ORDER BY customer_lifetime_value DESC
+LIMIT 5</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">4</div>
+          <div>
+            <h3>SQL Guardrail</h3>
+            <p>本地校验 SQL 是只读查询，避免执行 DDL、DML 或多语句等危险内容。</p>
+            <p class="label">负责人：validate_readonly_sql()</p>
+            <pre><code>{
+  "step": "generate_sql",
+  "error_feedback": null
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">5</div>
+          <div>
+            <h3>Wren dry-plan</h3>
+            <p>Wren 将 model-layer SQL 展开为目标数据源可执行的 SQL 形态，证明查询经过了 Wren semantic layer。</p>
+            <p class="label">负责人：WrenCliAdapter.dry_plan()</p>
+            <pre><code>WITH customers AS (...)
+SELECT first_name, last_name, customer_lifetime_value
+FROM customers
+ORDER BY customer_lifetime_value DESC
+LIMIT 5</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">6</div>
+          <div>
+            <h3>Wren dry-run</h3>
+            <p>Wren 在真实数据库上做可执行性验证，但不返回最终 rows。</p>
+            <p class="label">负责人：WrenCliAdapter.dry_run()</p>
+            <pre><code>{
+  "ok": true,
+  "message": "OK"
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">7</div>
+          <div>
+            <h3>Wren execute</h3>
+            <p>dry-plan 和 dry-run 通过后，Wren 执行查询并返回 rows。</p>
+            <p class="label">负责人：WrenCliAdapter.execute()</p>
+            <pre><code>[
+  {"first_name": "Howard", "last_name": "R.", "customer_lifetime_value": 99.0},
+  {"first_name": "Kathleen", "last_name": "P.", "customer_lifetime_value": 65.0},
+  {"first_name": "Norma", "last_name": "C.", "customer_lifetime_value": 64.0},
+  {"first_name": "Christina", "last_name": "W.", "customer_lifetime_value": 57.0},
+  {"first_name": "Rose", "last_name": "M.", "customer_lifetime_value": 57.0}
+]</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num">8</div>
+          <div>
+            <h3>总结结果与 trace 落盘</h3>
+            <p>DeepSeek 生成自然语言答案和图表建议；完整执行记录写入 JSONL trace。</p>
+            <p class="label">负责人：DeepSeekLLMAdapter.summarize_result() / JsonlTraceStore.append()</p>
+            <pre><code>{
+  "answer": "1. Howard R. ($99.0) ...",
+  "chart_spec": {"type": "bar"},
+  "trace_id": "trace_f4babfdf564c4efdb646fca1e2141505"
+}</code></pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>链路 B：真实 ReAct 修复路径</h2>
+      <div class="summary-grid">
+        <div class="panel">
+          <h3>执行命令</h3>
+          <p>这个命令强制第一轮 SQL 使用错误字段，目的是稳定触发 repair 分支。</p>
+          <pre><code>$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent.cli ask "How many orders are there?" --inject-initial-sql "SELECT bad_column FROM orders" --limit 5</code></pre>
+        </div>
+        <div class="panel">
+          <h3>最终结果</h3>
+          <pre><code>{
+  "status": "success",
+  "answer": "There are 99 orders.",
+  "sql": "SELECT COUNT(*) FROM orders",
+  "rows": [{"count_star()": 99}],
+  "trace_id": "trace_8123219a172d4ed2b7c977e8af45a4d1"
+}</code></pre>
+        </div>
+      </div>
+
+      <h2>链路 B 阶段输出</h2>
+      <div class="timeline">
+        <article class="step">
+          <div class="num blue">1</div>
+          <div>
+            <h3>Action：注入第一轮坏 SQL</h3>
+            <p>这是 debug/eval-only 行为。它不会污染正常问数路径，trace 里也会明确记录 warning。</p>
+            <p class="label">负责人：DataSubagent 读取 constraints.debug_initial_sql</p>
+            <pre><code>SELECT bad_column FROM orders</code></pre>
+            <pre><code>{
+  "step": "inject_initial_sql",
+  "sql": "SELECT bad_column FROM orders",
+  "error_feedback": null
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">2</div>
+          <div>
+            <h3>Observation：Wren dry-plan 仍可展开</h3>
+            <p>Wren 能识别 <code>orders</code> 这个 model，并展开到 jaffle_shop 物理表；但 <code>bad_column</code> 是否存在要到 dry-run 才由数据库校验出来。</p>
+            <p class="label">负责人：WrenCliAdapter.dry_plan()</p>
+            <pre><code>WITH orders AS (...)
+SELECT bad_column FROM orders</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">3</div>
+          <div>
+            <h3>Observation：Wren dry-run 返回真实错误</h3>
+            <p>这是本次 ReAct 的关键 observation。Data Subagent 把这个错误反馈给 DeepSeek 的 <code>repair_sql</code>。</p>
+            <p class="label">负责人：WrenCliAdapter.dry_run()</p>
+            <pre><code>{
+  "ok": false,
+  "message": "Binder Error: Referenced column \"bad_column\" not found in FROM clause! phase=SQL_DRY_RUN"
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">4</div>
+          <div>
+            <h3>Action：DeepSeek repair_sql</h3>
+            <p>修复阶段不是只看错误信息。它看到的是原始问题、Wren semantic context、已确认 examples、上一条失败 SQL，以及 Wren dry-run error。</p>
+            <p class="label">负责人：DeepSeekLLMAdapter.repair_sql()</p>
+            <pre><code>Input delta compared with generate_sql:
++ Previous SQL:
+  SELECT bad_column FROM orders
+
++ Error feedback:
+  Binder Error: Referenced column "bad_column" not found in FROM clause!
+  phase=SQL_DRY_RUN</code></pre>
+            <pre><code>SELECT COUNT(*) FROM orders</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">5</div>
+          <div>
+            <h3>Observation：Wren dry-run 修复后通过</h3>
+            <p>修复后的 SQL 再次进入 Wren dry-plan 和 dry-run。这次 dry-run 通过。</p>
+            <p class="label">负责人：WrenCliAdapter.dry_run()</p>
+            <pre><code>{
+  "ok": true,
+  "message": "OK"
+}</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">6</div>
+          <div>
+            <h3>Action：Wren execute</h3>
+            <p>Data Subagent 只在 dry-run 成功后执行查询。</p>
+            <p class="label">负责人：WrenCliAdapter.execute()</p>
+            <pre><code>[
+  {
+    "count_star()": 99
+  }
+]</code></pre>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="num blue">7</div>
+          <div>
+            <h3>Action：DeepSeek summarize_result 并保存 trace</h3>
+            <p>DeepSeek 根据最终 SQL 和 rows 生成答案；trace 保存完整修复过程。</p>
+            <p class="label">负责人：DeepSeekLLMAdapter.summarize_result() / JsonlTraceStore.append()</p>
+            <pre><code>{
+  "answer": "There are 99 orders.",
+  "trace_id": "trace_8123219a172d4ed2b7c977e8af45a4d1",
+  "warnings": [
+    "debug_initial_sql was injected; first SQL attempt did not come from the LLM."
+  ]
+}</code></pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>两条链路对比</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>链路 A：正常成功路径</th>
+            <th>链路 B：ReAct 修复路径</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>第一轮 SQL 来源</td>
+            <td>DeepSeek <code>generate_sql</code></td>
+            <td>debug/eval 参数 <code>--inject-initial-sql</code></td>
+          </tr>
+          <tr>
+            <td>是否触发 repair</td>
+            <td>否，dry-run 一次通过</td>
+            <td>是，Wren dry-run 报真实字段错误后触发</td>
+          </tr>
+          <tr>
+            <td>关键 observation</td>
+            <td><code>dry_run OK</code></td>
+            <td><code>bad_column not found</code></td>
+          </tr>
+          <tr>
+            <td>最终执行</td>
+            <td>Wren execute 返回客户 lifetime value 排名</td>
+            <td>Wren execute 返回订单总数 99</td>
+          </tr>
+          <tr>
+            <td>证明点</td>
+            <td>端到端真实问数链路可用</td>
+            <td>真实 Wren 错误能驱动 DeepSeek 修复 SQL</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>关键结论</h2>
+      <div class="panel">
+        <p><strong>这两个案例对应同一套项目结构：</strong>Data Subagent 做受控编排，WrenAI 做语义层和执行底座，DeepSeek 做 SQL 生成/修复/总结，trace 记录全过程。</p>
+        <p><strong>ReAct 不是开放式乱调用工具：</strong>当前是受控 ReAct。动作集合固定为 context、generate_sql、dry-plan、dry-run、repair_sql、execute、summarize、save_trace。</p>
+        <p><strong>Trace ID 的作用：</strong>每次运行都有唯一 ID，后续可以聚合失败案例、形成 eval、改进 prompt/Wren context/examples，并作为 Codex SDK 后台自改进 runtime 的输入。</p>
+        <p><strong>下一步：</strong>把这类 repair demo 固化成 integration/eval case，并增加更多真实错误类型，例如字段歧义、聚合口径错误、relationship 缺失和 SQL 方言错误。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    Generated from local Data Subagent MVP runs on 2026-07-08.
+  </footer>
+</body>
+</html>

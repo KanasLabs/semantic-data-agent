@@ -1,0 +1,58 @@
+name: customers
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: customers
+columns:
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: This is a unique identifier for a customer
+    dbt_tests: not_null,unique
+    dbt_test_status: verified
+  is_primary_key: true
+- name: first_name
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Customer's first name. PII.
+- name: last_name
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Customer's last name. PII.
+- name: first_order
+  type: DATE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Date (UTC) of a customer's first order
+- name: most_recent_order
+  type: DATE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Date (UTC) of a customer's most recent order
+- name: number_of_orders
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Count of the number of orders a customer has placed
+- name: customer_lifetime_value
+  type: DOUBLE
+  is_calculated: false
+  not_null: false
+  properties: {}
+cached: false
+properties:
+  description: This table has basic information about a customer, as well as some
+    derived facts based on a customer's orders
+  dbt_layer: model
+  dbt_unique_id: model.jaffle_shop.customers
+  dbt_resource_type: model
+primary_key: customer_id

@@ -1,0 +1,103 @@
+name: orders
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: orders
+columns:
+- name: order_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: This is a unique identifier for an order
+    dbt_tests: not_null,unique
+    dbt_test_status: verified
+  is_primary_key: true
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Foreign key to the customers table
+    dbt_tests: not_null,relationships
+    dbt_test_status: verified
+- name: order_date
+  type: DATE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Date (UTC) that the order was placed
+- name: status
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Orders can be one of the following statuses:\r\n\r\n| status   \
+      \      | description                                                       \
+      \                                                     |\r\n|----------------|------------------------------------------------------------------------------------------------------------------------|\r\
+      \n| placed         | The order has been placed but has not yet left the warehouse\
+      \                                                           |\r\n| shipped \
+      \       | The order has ben shipped to the customer and is currently in transit\
+      \                                                  |\r\n| completed      | The\
+      \ order has been received by the customer                                  \
+      \                                          |\r\n| return_pending | The customer\
+      \ has indicated that they would like to return the order, but it has not yet\
+      \ been received at the warehouse |\r\n| returned       | The order has been\
+      \ returned by the customer and received at the warehouse                   \
+      \                           |"
+    accepted_values:
+    - placed
+    - shipped
+    - completed
+    - return_pending
+    - returned
+    dbt_tests: accepted_values
+    dbt_test_status: verified
+- name: credit_card_amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Amount of the order (AUD) paid for by credit card
+    dbt_tests: not_null
+    dbt_test_status: verified
+- name: coupon_amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Amount of the order (AUD) paid for by coupon
+    dbt_tests: not_null
+    dbt_test_status: verified
+- name: bank_transfer_amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Amount of the order (AUD) paid for by bank transfer
+    dbt_tests: not_null
+    dbt_test_status: verified
+- name: gift_card_amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Amount of the order (AUD) paid for by gift card
+    dbt_tests: not_null
+    dbt_test_status: verified
+- name: amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Total amount (AUD) of the order
+    dbt_tests: not_null
+    dbt_test_status: verified
+cached: false
+properties:
+  description: This table has basic information about orders, as well as some derived
+    facts based on payments
+  dbt_layer: model
+  dbt_unique_id: model.jaffle_shop.orders
+  dbt_resource_type: model
+primary_key: order_id

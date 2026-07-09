@@ -1,0 +1,43 @@
+name: stg_orders
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: stg_orders
+columns:
+- name: order_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    dbt_tests: not_null,unique
+    dbt_test_status: verified
+  is_primary_key: true
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: false
+  properties: {}
+- name: order_date
+  type: DATE
+  is_calculated: false
+  not_null: false
+  properties: {}
+- name: status
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties:
+    accepted_values:
+    - placed
+    - shipped
+    - completed
+    - return_pending
+    - returned
+    dbt_tests: accepted_values
+    dbt_test_status: verified
+cached: false
+properties:
+  dbt_layer: staging
+  dbt_unique_id: model.jaffle_shop.stg_orders
+  dbt_resource_type: model
+primary_key: order_id

@@ -1,0 +1,42 @@
+name: stg_payments
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: stg_payments
+columns:
+- name: payment_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    dbt_tests: not_null,unique
+    dbt_test_status: verified
+  is_primary_key: true
+- name: order_id
+  type: INT
+  is_calculated: false
+  not_null: false
+  properties: {}
+- name: payment_method
+  type: TEXT
+  is_calculated: false
+  not_null: false
+  properties:
+    accepted_values:
+    - credit_card
+    - coupon
+    - bank_transfer
+    - gift_card
+    dbt_tests: accepted_values
+    dbt_test_status: verified
+- name: amount
+  type: DOUBLE
+  is_calculated: false
+  not_null: false
+  properties: {}
+cached: false
+properties:
+  dbt_layer: staging
+  dbt_unique_id: model.jaffle_shop.stg_payments
+  dbt_resource_type: model
+primary_key: payment_id
