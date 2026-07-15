@@ -46,6 +46,10 @@ class PrepareSqliteWrenProjectTest(unittest.TestCase):
             )
             self.assertEqual(orders["table_reference"]["catalog"], "sales")
             self.assertEqual(orders["primary_key"], "order_id")
+            order_id = next(column for column in orders["columns"] if column["name"] == "order_id")
+            amount = next(column for column in orders["columns"] if column["name"] == "amount")
+            self.assertEqual(order_id["type"], "INT")
+            self.assertEqual(amount["type"], "FLOAT")
 
             rels = yaml.safe_load((project_dir / "relationships.yml").read_text())
             self.assertEqual(rels["relationships"][0]["join_type"], "MANY_TO_ONE")
@@ -62,6 +66,19 @@ class PrepareSqliteWrenProjectTest(unittest.TestCase):
             self.assertEqual(profiles["active"], "sales")
             self.assertEqual(profiles["profiles"]["sales"]["datasource"], "duckdb")
             self.assertEqual(profiles["profiles"]["sales"]["url"], str(root))
+
+    def test_invalid_sqlite_foreign_key_metadata_is_skipped(self):
+        module = _load_script_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sqlite_path = root / "bad_fk.sqlite"
+            duckdb_path = root / "bad_fk.duckdb"
+            _create_invalid_fk_fixture(sqlite_path)
+
+            tables, relationships = module.convert_sqlite_to_duckdb(sqlite_path, duckdb_path)
+
+            self.assertEqual([table.name for table in tables], ["customers", "yearmonth"])
+            self.assertEqual(relationships, [])
 
 
 def _create_sqlite_fixture(path: Path) -> None:
@@ -82,6 +99,31 @@ def _create_sqlite_fixture(path: Path) -> None:
             INSERT INTO customers VALUES (1, 'Ada');
             INSERT INTO orders VALUES (10, 1, 12.5);
             INSERT INTO orders VALUES (11, 1, 7.5);
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _create_invalid_fk_fixture(path: Path) -> None:
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE customers (
+                CustomerID INTEGER PRIMARY KEY,
+                Segment TEXT
+            );
+            CREATE TABLE yearmonth (
+                Date TEXT,
+                CustomerID INTEGER,
+                Consumption REAL,
+                PRIMARY KEY(Date, CustomerID),
+                FOREIGN KEY(CustomerID) REFERENCES customers
+            );
+            INSERT INTO customers VALUES (1, 'A');
+            INSERT INTO yearmonth VALUES ('2024-01', 1, 12.5);
             """
         )
         conn.commit()

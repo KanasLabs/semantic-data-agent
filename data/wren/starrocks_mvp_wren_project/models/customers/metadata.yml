@@ -1,0 +1,35 @@
+name: customers
+table_reference:
+  catalog: default_catalog
+  schema: data_agent_mvp
+  table: customers
+columns:
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: Unique customer identifier.
+- name: customer_name
+  type: VARCHAR
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Customer display name used by the local MVP dataset.
+- name: region
+  type: VARCHAR
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Customer sales region.
+- name: signup_date
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Date when the customer signed up.
+cached: false
+properties:
+  description: Customers in the local StarRocks MVP dataset.
+primary_key: customer_id

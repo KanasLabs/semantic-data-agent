@@ -21,6 +21,8 @@ class EvalRunnerTest(unittest.TestCase):
                         "eval_id": "case_1",
                         "question": "How many orders are there?",
                         "expected_sql_contains": ["count"],
+                        "expected_answer_contains": ["row"],
+                        "expected_answer_not_contains": ["dollar"],
                     }
                 )
                 + "\n",
@@ -30,6 +32,8 @@ class EvalRunnerTest(unittest.TestCase):
             self.assertEqual(len(cases), 1)
             self.assertEqual(cases[0].eval_id, "case_1")
             self.assertEqual(cases[0].expected_sql_contains, ["count"])
+            self.assertEqual(cases[0].expected_answer_contains, ["row"])
+            self.assertEqual(cases[0].expected_answer_not_contains, ["dollar"])
 
     def test_run_eval_suite_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -151,6 +155,49 @@ class EvalRunnerTest(unittest.TestCase):
             self.assertFalse(summary.records[0].gold_sql_check["execution_match"])
             self.assertIn("Gold SQL Check", summary.report_path.read_text(encoding="utf-8"))
 
+    def test_answer_semantic_assertions_detect_wrong_currency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            suite = root / "suite.jsonl"
+            suite.write_text(
+                json.dumps(
+                    {
+                        "eval_id": "currency_case",
+                        "question": "What is the total realized revenue?",
+                        "expected_answer_contains": ["CNY"],
+                        "expected_answer_not_contains": ["$"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            trace_path = root / "trace.jsonl"
+            agent = DataSubagent(
+                wren=FakeWrenAdapter(),
+                llm=WrongCurrencyLLMAdapter("select sum(amount) from orders"),
+                trace_store=JsonlTraceStore(trace_path),
+            )
+            summary = run_eval_suite(
+                agent=agent,
+                cases_path=suite,
+                trace_path=trace_path,
+                output_dir=root / "runs",
+                report_dir=root / "reports",
+                suite_name="semantic_improvement",
+            )
+
+            self.assertEqual(summary.failed, 1)
+            self.assertFalse(summary.records[0].metrics["answer_contains_match"])
+            self.assertFalse(summary.records[0].metrics["answer_not_contains_match"])
+            self.assertIn(
+                "answer missing expected fragment(s): ['CNY']",
+                summary.records[0].failure_reasons,
+            )
+            self.assertIn(
+                "answer contains forbidden fragment(s): ['$']",
+                summary.records[0].failure_reasons,
+            )
+
     def test_rows_equivalent_handles_mixed_value_types(self):
         self.assertTrue(
             _rows_equivalent(
@@ -170,6 +217,11 @@ class GoldMismatchWrenAdapter(FakeWrenAdapter):
         if self._execute_count == 1:
             return ExecuteResult(ok=True, rows=[{"order_count": 99}])
         return ExecuteResult(ok=True, rows=[{"order_count": 100}])
+
+
+class WrongCurrencyLLMAdapter(StaticLLMAdapter):
+    def summarize_result(self, question, sql, rows):
+        return "The total realized revenue is $1,131.70.", {}, 1.0
 
 
 if __name__ == "__main__":

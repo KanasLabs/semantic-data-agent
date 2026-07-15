@@ -1,0 +1,25 @@
+services:
+  starrocks:
+    image: starrocks/allin1-ubuntu:${STARROCKS_VERSION:-3.5.18}
+    container_name: data-agent-starrocks
+    privileged: true
+    restart: unless-stopped
+    ports:
+      - "${STARROCKS_FE_HTTP_PORT:-18030}:8030"
+      - "${STARROCKS_BE_HTTP_PORT:-18040}:8040"
+      - "${STARROCKS_SQL_PORT:-19030}:9030"
+    volumes:
+      - starrocks_fe_meta:/data/deploy/starrocks/fe/meta
+      - starrocks_be_storage:/data/deploy/starrocks/be/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysql -h127.0.0.1 -P9030 -uroot -e "SELECT 1" >/dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  starrocks_fe_meta:
+  starrocks_be_storage:

@@ -1,0 +1,53 @@
+name: supplier
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: supplier
+columns:
+- name: s_suppkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H supplier identifier; non-null and unique across the inspected snapshot.
+- name: s_name
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supplier name.
+- name: s_address
+  type: VARCHAR(40)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supplier address text.
+- name: s_nationkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Nation identifier validated against nation.n_nationkey with zero snapshot orphans.
+- name: s_phone
+  type: VARCHAR(15)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supplier phone text.
+- name: s_acctbal
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supplier account-balance value; unit and accounting interpretation require expert confirmation.
+- name: s_comment
+  type: VARCHAR(101)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supplier comment text.
+cached: false
+properties:
+  description: TPC-H suppliers with location, contact, account-balance, and comment attributes.
+primary_key: s_suppkey

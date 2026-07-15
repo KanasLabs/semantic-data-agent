@@ -1,0 +1,198 @@
+{
+  "artifact_kind": "schema_manifest",
+  "candidate_status": "process_evidence_not_semantic_truth",
+  "generated_on": "2026-07-14",
+  "source": {
+    "catalog": "default_catalog",
+    "database": "tpch_sf001",
+    "datasource": "starrocks",
+    "wren_datasource": "doris",
+    "evidence_path": "onboarding/starrocks_query_evidence.jsonl",
+    "discovery_snapshot_path": "onboarding/discovery_snapshot.json"
+  },
+  "type_normalization": {
+    "tool": "wren utils parse-type",
+    "dialect": "mysql",
+    "mappings": {
+      "int": "INT",
+      "bigint": "BIGINT",
+      "varchar(1)": "VARCHAR(1)",
+      "varchar(10)": "VARCHAR(10)",
+      "varchar(15)": "VARCHAR(15)",
+      "varchar(23)": "VARCHAR(23)",
+      "varchar(25)": "VARCHAR(25)",
+      "varchar(40)": "VARCHAR(40)",
+      "varchar(44)": "VARCHAR(44)",
+      "varchar(55)": "VARCHAR(55)",
+      "varchar(79)": "VARCHAR(79)",
+      "varchar(101)": "VARCHAR(101)",
+      "varchar(117)": "VARCHAR(117)",
+      "varchar(152)": "VARCHAR(152)",
+      "varchar(199)": "VARCHAR(199)",
+      "decimal(15,2)": "DECIMAL(15, 2)",
+      "date": "DATE"
+    }
+  },
+  "tables": [
+    {
+      "name": "region",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "region"},
+      "row_count": 5,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["r_regionkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["r_regionkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["r_regionkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "r_regionkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "r_name", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "r_comment", "raw_type": "varchar(152)", "type": "VARCHAR(152)", "not_null": false}
+      ],
+      "evidence_hashes": {"ddl": "3e25a367509a2e4b47a2d6f9a777067e8b0b07bb00256708f981ed12967cb4a3", "columns": "d374303838c8012a9fa528e9adba765e78cf0f32ca7f7387597967f41e13bc10", "key_profile": "bece1ac27da0cad9f35d3af6a0ff4bc234efcdbb2605bf933fd24a443928633e"}
+    },
+    {
+      "name": "nation",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "nation"},
+      "row_count": 25,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["n_nationkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["n_nationkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["n_nationkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "n_nationkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "n_name", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "n_regionkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "n_comment", "raw_type": "varchar(152)", "type": "VARCHAR(152)", "not_null": false}
+      ],
+      "evidence_hashes": {"ddl": "36f9e86af778dfbc39a986b350503c446acd7d2c591ae90d3ff27c47136d1e76", "columns": "bdce01219073d7f961d424a17638e23fda04c81b5c17105bdb3de462e2ddc23f", "key_profile": "403cfb652d70d1acba34f8660c69f51bbcaaeea47bb84a7229adbf01361c1a09"}
+    },
+    {
+      "name": "supplier",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "supplier"},
+      "row_count": 100,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["s_suppkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["s_suppkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["s_suppkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "s_suppkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "s_name", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "s_address", "raw_type": "varchar(40)", "type": "VARCHAR(40)", "not_null": true},
+        {"name": "s_nationkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "s_phone", "raw_type": "varchar(15)", "type": "VARCHAR(15)", "not_null": true},
+        {"name": "s_acctbal", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "s_comment", "raw_type": "varchar(101)", "type": "VARCHAR(101)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "529c2e391127d86c8922ba023f5c65b033befa7d7437999fea90f4fe6b94c624", "columns": "9439925dd309b66d3f2b05ac6afbf590d84df4600e89616417c3e572a0d5b900", "key_profile": "49ea93dd168c9cd70e7b8c25cadf0fd98f741f799099f7502d52830ce62783d1"}
+    },
+    {
+      "name": "customer",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "customer"},
+      "row_count": 1500,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["c_custkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["c_custkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["c_custkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "c_custkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "c_name", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "c_address", "raw_type": "varchar(40)", "type": "VARCHAR(40)", "not_null": true},
+        {"name": "c_nationkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "c_phone", "raw_type": "varchar(15)", "type": "VARCHAR(15)", "not_null": true},
+        {"name": "c_acctbal", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "c_mktsegment", "raw_type": "varchar(10)", "type": "VARCHAR(10)", "not_null": true},
+        {"name": "c_comment", "raw_type": "varchar(117)", "type": "VARCHAR(117)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "fd54393c951e9d054d9071ffddc7fb04ecdd456833917432e365337c442b65f4", "columns": "2044ef0bb33f540ce70f13d5a8c7139e6400f6d3b389aefc60fb9599715fdde0", "key_profile": "99f79a1e51b63626fa84caf9899dbc5ffe59d64ac11346c8202c4e56753fd7a7"}
+    },
+    {
+      "name": "part",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "part"},
+      "row_count": 2000,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["p_partkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["p_partkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["p_partkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "p_partkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "p_name", "raw_type": "varchar(55)", "type": "VARCHAR(55)", "not_null": true},
+        {"name": "p_mfgr", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "p_brand", "raw_type": "varchar(10)", "type": "VARCHAR(10)", "not_null": true},
+        {"name": "p_type", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "p_size", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "p_container", "raw_type": "varchar(10)", "type": "VARCHAR(10)", "not_null": true},
+        {"name": "p_retailprice", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "p_comment", "raw_type": "varchar(23)", "type": "VARCHAR(23)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "b36e4d6a948f57df52f873912ccebdd05869a6a7d765c5348fd8633b6c8ac329", "columns": "26ae7b485eca379c1ab36e40fea6e0cc1647346dd855975cbcc8e7158c997d13", "key_profile": "65bead77a44180809ae44e2eb8532d1c1ad3abe518a7fbbfa19d59e141b7f960"}
+    },
+    {
+      "name": "partsupp",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "partsupp"},
+      "row_count": 8000,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["ps_partkey", "ps_suppkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["ps_partkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["ps_partkey", "ps_suppkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": false},
+      "columns": [
+        {"name": "ps_partkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "ps_suppkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "ps_availqty", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "ps_supplycost", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "ps_comment", "raw_type": "varchar(199)", "type": "VARCHAR(199)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "f91dee4a3373a556980a5ad47f3bd622b168ef237cbf648a5c5172bb9963dd88", "columns": "9cabf702628870e0089b0285f4cff91077c07d4fb584b1dee4f4609e49e308c8", "key_profile": "40db6475c871ed4211894b6d00eae502ff3cf66cffb7fb55fa38b8813e25f382"}
+    },
+    {
+      "name": "orders",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "orders"},
+      "row_count": 15000,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["o_orderkey"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["o_orderkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["o_orderkey"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": true},
+      "columns": [
+        {"name": "o_orderkey", "raw_type": "bigint", "type": "BIGINT", "not_null": true},
+        {"name": "o_custkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "o_orderstatus", "raw_type": "varchar(1)", "type": "VARCHAR(1)", "not_null": true},
+        {"name": "o_totalprice", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "o_orderdate", "raw_type": "date", "type": "DATE", "not_null": true},
+        {"name": "o_orderpriority", "raw_type": "varchar(15)", "type": "VARCHAR(15)", "not_null": true},
+        {"name": "o_clerk", "raw_type": "varchar(15)", "type": "VARCHAR(15)", "not_null": true},
+        {"name": "o_shippriority", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "o_comment", "raw_type": "varchar(79)", "type": "VARCHAR(79)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "da35610fa2e8e32e1d8dc796d0e63bf378985ac34c8aca368fc65f570fb5aa6f", "columns": "22266bd0ce4516e6883c9f6ee11b83f40014a2cae292287b0bd958608f29d03c", "key_profile": "23d7b5c10fd3c469ba4d7e5257e7aba76549bbf691a5ad8bcceb1c4a10910830"}
+    },
+    {
+      "name": "lineitem",
+      "table_reference": {"catalog": "default_catalog", "schema": "tpch_sf001", "table": "lineitem"},
+      "row_count": 60175,
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["l_orderkey", "l_partkey", "l_suppkey", "l_linenumber"], "uniqueness_enforced": false, "partition_key": null, "distribution_key": ["l_orderkey"], "buckets": 1, "secondary_indexes": []},
+      "logical_key_candidate": {"columns": ["l_orderkey", "l_linenumber"], "snapshot_unique": true, "snapshot_null_count": 0, "represented_as_wren_primary_key": false},
+      "columns": [
+        {"name": "l_orderkey", "raw_type": "bigint", "type": "BIGINT", "not_null": true},
+        {"name": "l_partkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "l_suppkey", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "l_linenumber", "raw_type": "int", "type": "INT", "not_null": true},
+        {"name": "l_quantity", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "l_extendedprice", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "l_discount", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "l_tax", "raw_type": "decimal(15,2)", "type": "DECIMAL(15, 2)", "not_null": true},
+        {"name": "l_returnflag", "raw_type": "varchar(1)", "type": "VARCHAR(1)", "not_null": true},
+        {"name": "l_linestatus", "raw_type": "varchar(1)", "type": "VARCHAR(1)", "not_null": true},
+        {"name": "l_shipdate", "raw_type": "date", "type": "DATE", "not_null": true},
+        {"name": "l_commitdate", "raw_type": "date", "type": "DATE", "not_null": true},
+        {"name": "l_receiptdate", "raw_type": "date", "type": "DATE", "not_null": true},
+        {"name": "l_shipinstruct", "raw_type": "varchar(25)", "type": "VARCHAR(25)", "not_null": true},
+        {"name": "l_shipmode", "raw_type": "varchar(10)", "type": "VARCHAR(10)", "not_null": true},
+        {"name": "l_comment", "raw_type": "varchar(44)", "type": "VARCHAR(44)", "not_null": true}
+      ],
+      "evidence_hashes": {"ddl": "4f8faa552b43fa8e99702f154917713548e9043ce7d548ee01a57977c0e36482", "columns": "373b4cdfb0e9bd360ca5ef36afc8819f89fd3cc80490f545fdde6374bf7e17d0", "key_profile": "afc717cbac833908c9e6f1b6957daf713fce3d12157be4334798594338f9ccaf"}
+    }
+  ],
+  "relationships": [
+    {"name": "nation_to_region", "join_type": "MANY_TO_ONE", "condition": "nation.n_regionkey = region.r_regionkey", "coverage": "25/25", "orphans": 0, "result_sha256": "3762942eb1f75d8cdd7f4c26dcd31a17e2b6dd6fbdbb4197a3780815770a74e7"},
+    {"name": "supplier_to_nation", "join_type": "MANY_TO_ONE", "condition": "supplier.s_nationkey = nation.n_nationkey", "coverage": "100/100", "orphans": 0, "result_sha256": "ecfb05deedb4f8c85c99b905f92bd2211dbc58e1acf246f01f6e83ae8bfdc932"},
+    {"name": "customer_to_nation", "join_type": "MANY_TO_ONE", "condition": "customer.c_nationkey = nation.n_nationkey", "coverage": "1500/1500", "orphans": 0, "result_sha256": "a3b70538eaf4cbcf96ad01244cacf1218da1c17eca3bd08b0dcaa0f55f706ec6"},
+    {"name": "orders_to_customer", "join_type": "MANY_TO_ONE", "condition": "orders.o_custkey = customer.c_custkey", "coverage": "15000/15000", "orphans": 0, "result_sha256": "95ee08ab67dddbba893a57640b9a7dbb1610522152d064bea89f285468b46060"},
+    {"name": "partsupp_to_part", "join_type": "MANY_TO_ONE", "condition": "partsupp.ps_partkey = part.p_partkey", "coverage": "8000/8000", "orphans": 0, "result_sha256": "eba4fecbcbe0506b7519f9ab4c6b32901ab0dec501a2dbb1de8f36be575c5174"},
+    {"name": "partsupp_to_supplier", "join_type": "MANY_TO_ONE", "condition": "partsupp.ps_suppkey = supplier.s_suppkey", "coverage": "8000/8000", "orphans": 0, "result_sha256": "c096ca2cb0790a60676c4429afd2d34bd413e9a8a57026f63c35112a135ade2d"},
+    {"name": "lineitem_to_orders", "join_type": "MANY_TO_ONE", "condition": "lineitem.l_orderkey = orders.o_orderkey", "coverage": "60175/60175", "orphans": 0, "result_sha256": "7d4d300129dade93a4f21b1128cd4d228f6bf04e309f5924f6bc43531c061fe3"},
+    {"name": "lineitem_to_partsupp", "join_type": "MANY_TO_ONE", "condition": "lineitem.l_partkey = partsupp.ps_partkey AND lineitem.l_suppkey = partsupp.ps_suppkey", "coverage": "60175/60175", "orphans": 0, "result_sha256": "c6c992b30209fa3af39d0cd95967374c6dd55d75f20d397e53be6e7b1bb7db99"}
+  ],
+  "rejected_relationship_candidates": [
+    {"name": "lineitem_to_part_direct", "condition": "lineitem.l_partkey = part.p_partkey", "coverage": "60175/60175", "orphans": 0, "result_sha256": "e755c9017f79e1f9a5227f51b021a4f76dda7d1916cdc35b47f1eac1941c6f32", "reason": "Redundant path through lineitem_to_partsupp and partsupp_to_part."},
+    {"name": "lineitem_to_supplier_direct", "condition": "lineitem.l_suppkey = supplier.s_suppkey", "coverage": "60175/60175", "orphans": 0, "result_sha256": "f66e6e4b3c59545e44379d0273ca906eb2819cdba520159785cd1c434f678904", "reason": "Redundant path through lineitem_to_partsupp and partsupp_to_supplier."}
+  ],
+  "limitations": [
+    "The manifest records discovery evidence and type normalization; it is not a finished business semantic model.",
+    "StarRocks DUPLICATE KEY definitions do not enforce the logical keys recorded here.",
+    "No company-specific metrics, currency, unit, code semantics, or default date policy was inferred."
+  ]
+}

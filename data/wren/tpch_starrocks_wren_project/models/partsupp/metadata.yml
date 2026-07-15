@@ -1,0 +1,39 @@
+name: partsupp
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: partsupp
+columns:
+- name: ps_partkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Part identifier validated against part.p_partkey with zero snapshot orphans.
+- name: ps_suppkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Supplier identifier validated against supplier.s_suppkey with zero snapshot orphans.
+- name: ps_availqty
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H available-quantity value for the part-supplier combination; operational interpretation requires review.
+- name: ps_supplycost
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H supply-cost value; currency and costing policy require expert confirmation.
+- name: ps_comment
+  type: VARCHAR(199)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H comment text for the part-supplier combination.
+cached: false
+properties:
+  description: TPC-H association between parts and suppliers. The inspected logical key is the composite ps_partkey plus ps_suppkey.

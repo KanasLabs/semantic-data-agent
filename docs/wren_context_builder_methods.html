@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WrenAI Context Layer / MDL 构建方法整理</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #5b6573;
+      --line: #d9dee7;
+      --soft: #f5f7fa;
+      --panel: #ffffff;
+      --accent: #1b6b5c;
+      --accent-soft: #e6f3ef;
+      --warn: #8a5a00;
+      --warn-soft: #fff6df;
+      --code: #eef2f7;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: #f8fafc;
+      line-height: 1.62;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 24px 64px;
+    }
+
+    header {
+      padding: 26px 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 14px;
+      font-size: 23px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+      font-size: 0.94em;
+    }
+
+    pre {
+      margin: 14px 0;
+      padding: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f1720;
+      color: #e6edf3;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #edf2f7;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    ul {
+      margin: 8px 0 18px;
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    .lede {
+      max-width: 900px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .callout {
+      margin: 22px 0;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      background: var(--accent-soft);
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin: 16px 0 24px;
+    }
+
+    .card {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 0 6px 8px 0;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid var(--line);
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 28px 16px 48px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>WrenAI Context Layer / MDL 构建方法整理</h1>
+      <p class="lede">
+        本文整理当前项目已核对的 WrenAI 构建 context layer / MDL 的几种路径，
+        重点区分“WrenAI core 内部原生导入”和“agent/script 按 Wren workflow 生成 YAML 后交给 Wren 校验编译”。
+      </p>
+      <p class="small">本地核对版本：<code>wrenai 0.12.0</code>。日期：2026-07-09。</p>
+    </header>
+
+    <section>
+      <h2>一句话结论</h2>
+      <div class="callout">
+        <p>
+          WrenAI 支持多种方式进入 MDL/context layer，但当前本地已验证的 OSS CLI
+          并没有一个 <code>wren context import database</code> 式的通用命令，
+          可以对任意数据库自动解析并生成高质量业务语义层。
+        </p>
+        <p>
+          <strong>dbt</strong> 是 WrenAI 原生 import 路径；
+          <strong>已有 MDL/OSI</strong> 可以由 WrenAI 原生 ingest/build；
+          <strong>普通数据库</strong> 通常由人、Codex、Claude Code 或脚本先做 schema introspection 和 YAML 生成，
+          再交给 WrenAI 做 validate/build/dry-run/query。
+        </p>
+      </div>
+
+      <pre><code>dbt project
+  -> WrenAI native context/profile import
+  -> validate/build/query
+
+existing MDL / OSI
+  -> WrenAI native init/build from file
+  -> validate/build/query
+
+ordinary database
+  -> agent/script inspects schema and writes Wren YAML
+  -> WrenAI validate/build/dry-run/query
+
+dlt/SaaS path
+  -> dlt loads data to DuckDB
+  -> bundled skill script introspects DuckDB and writes Wren YAML
+  -> WrenAI validate/build/query</code></pre>
+    </section>
+
+    <section>
+      <h2>方法总览</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>方法</th>
+            <th>谁解析输入</th>
+            <th>谁生成 Wren context / MDL 文件</th>
+            <th>WrenAI 负责什么</th>
+            <th>适用场景</th>
+            <th>关键限制</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. dbt 原生导入</strong></td>
+            <td>WrenAI CLI 读取 dbt project、manifest、catalog、profiles</td>
+            <td>WrenAI CLI</td>
+            <td><code>context import dbt</code>、<code>profile import dbt</code>、validate/build</td>
+            <td>已有 dbt 工程和 dbt 语义资产</td>
+            <td>本地 CLI import source 当前只支持 <code>dbt</code></td>
+          </tr>
+          <tr>
+            <td><strong>2. 已有 MDL / OSI 输入</strong></td>
+            <td>WrenAI CLI 读取已有 MDL JSON 或 OSI YAML</td>
+            <td>已有文件提供，或由 Wren 从 OSI/MDL 转换</td>
+            <td><code>context init --from-mdl</code>、<code>--from-osi</code>、<code>build --from-osi</code></td>
+            <td>已有 semantic model 标准文件或迁移场景</td>
+            <td>不是数据库 introspection，前提是语义模型已经存在</td>
+          </tr>
+          <tr>
+            <td><strong>3. 手写或普通 agent 生成 Wren YAML</strong></td>
+            <td>人、Codex、Claude Code、业务脚本、数据库 driver</td>
+            <td>人或 agent/script</td>
+            <td>项目 scaffold、类型归一化工具、validate/build/dry-run/query</td>
+            <td>任意数据库、业务定制、渐进式建模</td>
+            <td>流程质量取决于人或脚本，容易漏校验、误猜类型或关系</td>
+          </tr>
+          <tr>
+            <td><strong>4. <code>generate-mdl</code> skill</strong></td>
+            <td>agent 按 Wren 官方 workflow 使用 SQLAlchemy、driver 或 SQL 探索数据库</td>
+            <td>agent 按 skill 规则写 Wren YAML</td>
+            <td>提供官方 agent 操作规程、类型归一化、validate/build/query</td>
+            <td>让 Codex/Claude Code 等 agent 系统化 onboarding 普通数据库</td>
+            <td>仍然是 agent/script 执行 introspection，不是 Wren core 一条命令自动解析任意 DB</td>
+          </tr>
+          <tr>
+            <td><strong>5. <code>dlt-connector</code> skill + script</strong></td>
+            <td>dlt pipeline 和 bundled <code>introspect_dlt.py</code> 脚本</td>
+            <td>skill 附带脚本生成 Wren project</td>
+            <td>后续 validate/build/query</td>
+            <td>HubSpot、Stripe、Salesforce、GitHub、Slack 等 SaaS 数据经 dlt 落 DuckDB</td>
+            <td>偏 SaaS/dlt 路径，不是通用数据库原生 import</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>方法 3 和方法 4 的差别</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>方法 3：手写或普通 agent 生成 YAML</h3>
+          <p>
+            这是能力层面：只要知道 Wren project 文件结构，就可以由人或脚本直接写
+            <code>wren_project.yml</code>、<code>models/*/metadata.yml</code>、
+            <code>relationships.yml</code> 和 knowledge 文件。
+          </p>
+          <p>
+            它可以很灵活，但流程规范完全取决于实现者。比如是否读取真实 schema、
+            是否做类型归一化、是否确认 foreign key、是否运行 validate/build，都没有默认约束。
+          </p>
+        </article>
+
+        <article class="card">
+          <h3>方法 4：<code>generate-mdl</code> skill</h3>
+          <p>
+            这是流程层面：WrenAI 官方把普通数据库 onboarding 拆成 agent workflow，
+            指导 agent 如何检测项目、连接数据库、发现表字段、归一化类型、写模型和关系、
+            validate/build，并做 smoke query。
+          </p>
+          <p>
+            它的产物仍然是 Wren YAML，但比“随便让 agent 写”多了操作规程和防错约束，
+            适合被我们固化成可重复的 Context Builder CLI。
+          </p>
+        </article>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>手写 / 普通 agent</th>
+            <th><code>generate-mdl</code> skill</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>流程来源</td>
+            <td>我们自己设计或人临场判断</td>
+            <td>Wren 官方 skill 给出的 agent workflow</td>
+          </tr>
+          <tr>
+            <td>schema 发现</td>
+            <td>可以随便用 SQL、driver、手工整理</td>
+            <td>明确建议 SQLAlchemy、database driver、raw SQL / information_schema</td>
+          </tr>
+          <tr>
+            <td>类型处理</td>
+            <td>可能手写映射</td>
+            <td>推荐 <code>wren.type_mapping.parse_type</code> 或 <code>wren utils parse-type</code></td>
+          </tr>
+          <tr>
+            <td>关系处理</td>
+            <td>自己决定是否推断</td>
+            <td>从 FK 约束发现，不确定时确认，避免静默错误 join</td>
+          </tr>
+          <tr>
+            <td>校验</td>
+            <td>可能漏掉</td>
+            <td>明确要求 <code>wren context validate</code>、<code>wren context build</code>、smoke query</td>
+          </tr>
+          <tr>
+            <td>本项目位置</td>
+            <td>早期 BIRD/SQLite 脚本属于这一类</td>
+            <td>Context Builder 的目标是把这个官方 workflow 产品化</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>当前本地验证</h2>
+      <div class="warning callout">
+        <p>
+          本地 <code>wrenai 0.12.0</code> 的 <code>context import</code> 和
+          <code>profile import</code> 都明确写着 import source 当前是 <code>dbt</code>。
+          本地源码中，非 <code>dbt</code> source 会直接返回 unsupported。
+        </p>
+      </div>
+
+      <pre><code>.\.venv-wren\Scripts\wren.exe context import --help
+# Import source (currently: dbt)
+
+.\.venv-wren\Scripts\wren.exe profile import --help
+# Import source (currently: dbt)
+
+.\.venv-wren\Scripts\wren.exe context init --help
+# supports --from-mdl and --from-osi
+
+.\.venv-wren\Scripts\wren.exe skills get generate-mdl
+# agent workflow for database schema discovery and Wren YAML generation</code></pre>
+    </section>
+
+    <section>
+      <h2>我们当前实现属于哪一种</h2>
+      <p>
+        当前 <code>src/data_subagent_context_builder/</code> 已调整为
+        <strong>方法 4：<code>generate-mdl</code> skill 优先</strong>。它仍然不是 WrenAI core
+        一条命令自动解析数据库，但 MDL authoring 默认交给 Codex/agent 按 Wren 官方 skill 执行。
+      </p>
+
+      <pre><code>SQLite database
+  -> Context Builder inspects factual schema only
+  -> Context Builder converts data to DuckDB runtime
+  -> WrenAI context init --empty scaffolds project
+  -> Context Builder writes onboarding/schema_manifest.json
+  -> Codex reads Wren generate-mdl skill
+  -> Codex writes or updates Wren YAML project
+  -> WrenAI context validate/build/dry-run
+  -> onboarding report / smoke eval</code></pre>
+
+      <p>
+        原来的确定性 SQLite YAML 生成已降级为 <code>generate-schema-draft</code> /
+        <code>generate-from-db --mode draft</code> fallback。它适合 smoke/debug bootstrap，
+        不再是推荐的 semantic layer 生成路径。
+      </p>
+    </section>
+
+    <section>
+      <h2>术语边界</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>WrenAI core 做的事</h3>
+          <span class="tag">profile</span>
+          <span class="tag">MDL format</span>
+          <span class="tag">validate</span>
+          <span class="tag">build</span>
+          <span class="tag">dry-plan</span>
+          <span class="tag">dry-run</span>
+          <span class="tag">query</span>
+          <p>
+            WrenAI 是语义层格式、校验、编译和执行底座。它也提供 dbt import、
+            MDL/OSI ingest、type mapping、skills、memory 等能力。
+          </p>
+        </article>
+
+        <article class="card">
+          <h3>agent/script 做的事</h3>
+          <span class="tag">schema introspection</span>
+          <span class="tag">YAML generation</span>
+          <span class="tag">relationship inference</span>
+          <span class="tag">report</span>
+          <p>
+            对普通数据库，agent/script 通常负责探索表、字段、类型、主外键和样例查询，
+            然后写 Wren YAML。WrenAI 再接管校验、编译和查询。
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>资料来源</h2>
+      <ul>
+        <li>
+          Wren Quick Start: skills、<code>generate-mdl</code> 生成步骤、agent 发现表字段并写 MDL 的说明。
+          <a href="https://raw.githubusercontent.com/Canner/WrenAI/main/docs/core/get_started/quickstart.md">GitHub raw doc</a>
+        </li>
+        <li>
+          Wren Connect Guide: profile、set-profile、用 <code>generate-mdl</code> 或手工生成 MDL 的总体流程。
+          <a href="https://raw.githubusercontent.com/Canner/WrenAI/main/docs/core/guides/connect.md">GitHub raw doc</a>
+        </li>
+        <li>
+          本地 WrenAI CLI 源码：
+          <code>.venv-wren/Lib/site-packages/wren/context_cli.py</code>、
+          <code>.venv-wren/Lib/site-packages/wren/profile_cli.py</code>、
+          <code>.venv-wren/Lib/site-packages/wren/skills_content/generate-mdl/SKILL.md</code>、
+          <code>.venv-wren/Lib/site-packages/wren/skills_content/dlt-connector/SKILL.md</code>。
+        </li>
+        <li>
+          本项目验证文档：
+          <code>docs/wren_context_builder_feasibility.md</code>、
+          <code>docs/wren_context_builder_plan.md</code>。
+        </li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

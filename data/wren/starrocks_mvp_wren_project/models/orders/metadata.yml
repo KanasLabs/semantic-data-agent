@@ -1,0 +1,44 @@
+name: orders
+table_reference:
+  catalog: default_catalog
+  schema: data_agent_mvp
+  table: orders
+columns:
+- name: order_id
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: Unique order identifier.
+- name: customer_id
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Customer that placed the order.
+- name: order_date
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Date when the order was placed.
+- name: status
+  type: VARCHAR
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Order state. Values in the MVP data are completed, shipped, or cancelled.
+      Only completed orders count toward realized revenue; shipped and cancelled orders
+      do not.
+- name: total_amount
+  type: DECIMAL
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Gross order amount denominated in CNY. For realized revenue, sum this
+      amount only for orders whose status is completed.
+cached: false
+properties:
+  description: Orders in the local StarRocks MVP dataset.
+primary_key: order_id

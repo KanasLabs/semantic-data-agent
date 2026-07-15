@@ -1,0 +1,7 @@
+schema_version: 5
+name: starrocks_mvp
+version: '0.1'
+catalog: default_catalog
+schema: data_agent_mvp
+data_source: doris
+profile: starrocks_mvp

@@ -1,0 +1,227 @@
+{
+  "artifact_kind": "discovery_snapshot",
+  "candidate_status": "review_required",
+  "generated_on": "2026-07-14",
+  "scope": {
+    "catalog": "default_catalog",
+    "database": "tpch_sf001",
+    "datasource": "starrocks_via_wren_doris_compatibility",
+    "tables": [
+      "customer",
+      "lineitem",
+      "nation",
+      "orders",
+      "part",
+      "partsupp",
+      "region",
+      "supplier"
+    ]
+  },
+  "evidence": {
+    "path": "onboarding/starrocks_query_evidence.jsonl",
+    "controlled_query_count": 69,
+    "truncated_query_count": 0,
+    "scope_result_hashes": {
+      "connectivity": "9107e283572ca61ae83f4502c318d42df316d562acb10d18661930223463ac95",
+      "catalogs": "02b27953a030c01be70de920f35d9e66dbd0b8d147cc7ac8aa74dcdb2c8de9e7",
+      "databases": "8e6b7a069ef739ee63907ee73f0391b43d97d7f1e9f52574da398605f40b0846",
+      "tables": "b66c2676eb19bbc251c524cd62b0795d4fe2e0fdf21d3345bce29503c09f9b21"
+    }
+  },
+  "inspected_objects": [
+    {
+      "name": "region",
+      "row_count": 5,
+      "physical_key": "DUPLICATE KEY(r_regionkey)",
+      "logical_key_candidate": ["r_regionkey"],
+      "logical_key_snapshot": {"distinct": 5, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["r_regionkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "3e25a367509a2e4b47a2d6f9a777067e8b0b07bb00256708f981ed12967cb4a3",
+        "describe": "d374303838c8012a9fa528e9adba765e78cf0f32ca7f7387597967f41e13bc10",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "107d219d56cf5a0f2cea9b4a41f11b1b85af0f9d1d9d0ea381ac425e129143f0",
+        "sample": "26a70c7c1911fa0c94029d4eaca736296e6702be8e89820fdad1a3d660bedd84",
+        "key_profile": "bece1ac27da0cad9f35d3af6a0ff4bc234efcdbb2605bf933fd24a443928633e"
+      }
+    },
+    {
+      "name": "nation",
+      "row_count": 25,
+      "physical_key": "DUPLICATE KEY(n_nationkey)",
+      "logical_key_candidate": ["n_nationkey"],
+      "logical_key_snapshot": {"distinct": 25, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["n_nationkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "36f9e86af778dfbc39a986b350503c446acd7d2c591ae90d3ff27c47136d1e76",
+        "describe": "bdce01219073d7f961d424a17638e23fda04c81b5c17105bdb3de462e2ddc23f",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "02043b7949ff833b9e0aba45daaa773e0218ce2357d788e1e37ecbfc7bc15e90",
+        "sample": "9627f99f391b04fc711a4a3c5da01068440073bb26d3b26aec4f0cda1e259460",
+        "key_profile": "403cfb652d70d1acba34f8660c69f51bbcaaeea47bb84a7229adbf01361c1a09"
+      }
+    },
+    {
+      "name": "supplier",
+      "row_count": 100,
+      "physical_key": "DUPLICATE KEY(s_suppkey)",
+      "logical_key_candidate": ["s_suppkey"],
+      "logical_key_snapshot": {"distinct": 100, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["s_suppkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "529c2e391127d86c8922ba023f5c65b033befa7d7437999fea90f4fe6b94c624",
+        "describe": "9439925dd309b66d3f2b05ac6afbf590d84df4600e89616417c3e572a0d5b900",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "8eca9c9ef3d40416d8823cfc78632c2c11dbbb2079119a5326f688f5f9fbfe3b",
+        "sample": "c86f06da7c183efb144d3a0d4684ada3ebbabe49874109314df6ddf71c56d2ac",
+        "key_profile": "49ea93dd168c9cd70e7b8c25cadf0fd98f741f799099f7502d52830ce62783d1"
+      }
+    },
+    {
+      "name": "customer",
+      "row_count": 1500,
+      "physical_key": "DUPLICATE KEY(c_custkey)",
+      "logical_key_candidate": ["c_custkey"],
+      "logical_key_snapshot": {"distinct": 1500, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["c_custkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "fd54393c951e9d054d9071ffddc7fb04ecdd456833917432e365337c442b65f4",
+        "describe": "2044ef0bb33f540ce70f13d5a8c7139e6400f6d3b389aefc60fb9599715fdde0",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "57d44ba3aa60e2f0562af538d8b49ea97ee3a41d90c3cdf5f1f210a7a156a138",
+        "sample": "f4847997cdb2a092890370bfde180335b599bad688478b2d81b8350ea2a42a7c",
+        "key_profile": "99f79a1e51b63626fa84caf9899dbc5ffe59d64ac11346c8202c4e56753fd7a7"
+      }
+    },
+    {
+      "name": "part",
+      "row_count": 2000,
+      "physical_key": "DUPLICATE KEY(p_partkey)",
+      "logical_key_candidate": ["p_partkey"],
+      "logical_key_snapshot": {"distinct": 2000, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["p_partkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "b36e4d6a948f57df52f873912ccebdd05869a6a7d765c5348fd8633b6c8ac329",
+        "describe": "26ae7b485eca379c1ab36e40fea6e0cc1647346dd855975cbcc8e7158c997d13",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "7a24990d4659b88c27c76b2c992b1dc0f07a460d2ede892dd6f07e15b042efa5",
+        "sample": "818b739936708b8f29981ae3bf30322e094b9e72bed628bf560242984e93a818",
+        "key_profile": "65bead77a44180809ae44e2eb8532d1c1ad3abe518a7fbbfa19d59e141b7f960"
+      }
+    },
+    {
+      "name": "partsupp",
+      "row_count": 8000,
+      "physical_key": "DUPLICATE KEY(ps_partkey, ps_suppkey)",
+      "logical_key_candidate": ["ps_partkey", "ps_suppkey"],
+      "logical_key_snapshot": {"distinct": 8000, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["ps_partkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "f91dee4a3373a556980a5ad47f3bd622b168ef237cbf648a5c5172bb9963dd88",
+        "describe": "9cabf702628870e0089b0285f4cff91077c07d4fb584b1dee4f4609e49e308c8",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "b84e022f629f89dabd144b48d5ddb58e2188cfe09193ccc9d3b5e9e1e1b2f9f2",
+        "sample": "692cf4c2d8c5349a9b300207e85914cce88abc876fb836da63c0a6517a2da664",
+        "key_profile": "40db6475c871ed4211894b6d00eae502ff3cf66cffb7fb55fa38b8813e25f382"
+      }
+    },
+    {
+      "name": "orders",
+      "row_count": 15000,
+      "physical_key": "DUPLICATE KEY(o_orderkey)",
+      "logical_key_candidate": ["o_orderkey"],
+      "logical_key_snapshot": {"distinct": 15000, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["o_orderkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "da35610fa2e8e32e1d8dc796d0e63bf378985ac34c8aca368fc65f570fb5aa6f",
+        "describe": "22266bd0ce4516e6883c9f6ee11b83f40014a2cae292287b0bd958608f29d03c",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "40f150c41b232c574204388f49a17fc39a4031933d2ed9fbf8e0cc87ec39511e",
+        "sample": "eb36086eb282d5c1469dcd60bcf6329b046c5a90c25aa4520d89a024c5fd1b5e",
+        "key_profile": "23d7b5c10fd3c469ba4d7e5257e7aba76549bbf691a5ad8bcceb1c4a10910830"
+      }
+    },
+    {
+      "name": "lineitem",
+      "row_count": 60175,
+      "physical_key": "DUPLICATE KEY(l_orderkey, l_partkey, l_suppkey, l_linenumber)",
+      "logical_key_candidate": ["l_orderkey", "l_linenumber"],
+      "logical_key_snapshot": {"distinct": 60175, "nulls": 0},
+      "partition": {"count": 1, "key": null},
+      "distribution": {"method": "HASH", "columns": ["l_orderkey"], "buckets": 1},
+      "secondary_index_count": 0,
+      "result_hashes": {
+        "show_create": "4f8faa552b43fa8e99702f154917713548e9043ce7d548ee01a57977c0e36482",
+        "describe": "373b4cdfb0e9bd360ca5ef36afc8819f89fd3cc80490f545fdde6374bf7e17d0",
+        "indexes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "partitions": "be94cc8e6a077798d76c9e5728d8e389bb1815af84c0683d4ed5ef4d583356e0",
+        "sample": "17d546d8c7710d83b04a21a4385704e9e518400a032f5642d5d89d2a50886c13",
+        "key_profile": "afc717cbac833908c9e6f1b6957daf713fce3d12157be4334798594338f9ccaf"
+      }
+    }
+  ],
+  "accepted_relationships": [
+    {"name": "nation_to_region", "child_rows": 25, "matched_rows": 25, "orphan_rows": 0, "result_sha256": "3762942eb1f75d8cdd7f4c26dcd31a17e2b6dd6fbdbb4197a3780815770a74e7"},
+    {"name": "supplier_to_nation", "child_rows": 100, "matched_rows": 100, "orphan_rows": 0, "result_sha256": "ecfb05deedb4f8c85c99b905f92bd2211dbc58e1acf246f01f6e83ae8bfdc932"},
+    {"name": "customer_to_nation", "child_rows": 1500, "matched_rows": 1500, "orphan_rows": 0, "result_sha256": "a3b70538eaf4cbcf96ad01244cacf1218da1c17eca3bd08b0dcaa0f55f706ec6"},
+    {"name": "orders_to_customer", "child_rows": 15000, "matched_rows": 15000, "orphan_rows": 0, "result_sha256": "95ee08ab67dddbba893a57640b9a7dbb1610522152d064bea89f285468b46060"},
+    {"name": "partsupp_to_part", "child_rows": 8000, "matched_rows": 8000, "orphan_rows": 0, "result_sha256": "eba4fecbcbe0506b7519f9ab4c6b32901ab0dec501a2dbb1de8f36be575c5174"},
+    {"name": "partsupp_to_supplier", "child_rows": 8000, "matched_rows": 8000, "orphan_rows": 0, "result_sha256": "c096ca2cb0790a60676c4429afd2d34bd413e9a8a57026f63c35112a135ade2d"},
+    {"name": "lineitem_to_orders", "child_rows": 60175, "matched_rows": 60175, "orphan_rows": 0, "result_sha256": "7d4d300129dade93a4f21b1128cd4d228f6bf04e309f5924f6bc43531c061fe3"},
+    {"name": "lineitem_to_partsupp", "child_rows": 60175, "matched_rows": 60175, "orphan_rows": 0, "result_sha256": "c6c992b30209fa3af39d0cd95967374c6dd55d75f20d397e53be6e7b1bb7db99"}
+  ],
+  "rejected_relationship_candidates": [
+    {
+      "name": "lineitem_to_part_direct",
+      "coverage": "60175/60175",
+      "orphan_rows": 0,
+      "result_sha256": "e755c9017f79e1f9a5227f51b021a4f76dda7d1916cdc35b47f1eac1941c6f32",
+      "reason": "Redundant with the validated composite lineitem_to_partsupp path followed by partsupp_to_part; omitted to reduce ambiguous join paths."
+    },
+    {
+      "name": "lineitem_to_supplier_direct",
+      "coverage": "60175/60175",
+      "orphan_rows": 0,
+      "result_sha256": "f66e6e4b3c59545e44379d0273ca906eb2819cdba520159785cd1c434f678904",
+      "reason": "Redundant with the validated composite lineitem_to_partsupp path followed by partsupp_to_supplier; omitted to reduce ambiguous join paths."
+    }
+  ],
+  "domain_findings": {
+    "customer_market_segments": {"observed_value_count": 5, "result_sha256": "af0f9b3ecd979b8a2616baf1269bc47e7290953f498d4a6124853ac0a10e0346"},
+    "order_status_codes": {"observed_values": ["F", "O", "P"], "result_sha256": "001ffdb31fec5ad2506e416230530f89e36a0a7262bb4291886a99d9fd73b61b"},
+    "order_priority_labels": {"observed_value_count": 5, "result_sha256": "e34ad9fa2751e23b22a86cb208ef7018ae46041b14de2e3e70154ed7ac022e7d"},
+    "line_return_and_status_pairs": {"observed_pair_count": 4, "result_sha256": "c5b8232dcfbca694b83f0dc9fa6088f5a0c66a98dd7c1f15b19948bf6ac65a76"},
+    "line_ship_modes": {"observed_value_count": 7, "result_sha256": "ca37682ad35cf23abba08a12a9e6c351ea3f57e53113ce1d1e77b1cdc501739f"},
+    "order_date_range": {"min": "1992-01-01", "max": "1998-08-02", "result_sha256": "d9ae9a61e63a60316dd6e617d0b6ee2c19d6c94f00b4c4f3fa6b3ee0bd1005b4"},
+    "line_date_ranges_result_sha256": "1a415f7a919c860cb1bf3e9a57b640dd0b73dc3bb55aee8957a2c8982669d432"
+  },
+  "findings": [
+    "All eight tables are StarRocks OLAP DUPLICATE KEY tables with one unpartitioned physical partition, one hash bucket, replication factor one, and no secondary indexes reported by SHOW INDEX.",
+    "DUPLICATE KEY defines StarRocks sort/storage keys and does not establish an enforced relational primary key.",
+    "Six single-column logical key candidates and two composite logical key candidates were non-null and unique in the inspected snapshot.",
+    "All eight emitted relationships had complete join coverage and zero orphans in the inspected snapshot.",
+    "No currency, quantity unit, code meaning, accounting rule, or default time semantics was established by discovery."
+  ],
+  "open_questions": [
+    "Are the snapshot-unique logical keys contractually unique and deduplicated upstream despite StarRocks DUPLICATE KEY storage?",
+    "What currencies and units apply to account balances, prices, costs, quantities, discounts, taxes, and part sizes?",
+    "What are the approved meanings and lifecycle rules for order status, line status, return flag, priority, market segment, and shipping codes?",
+    "Which date should each business analysis use, and are any late-arriving or backfilled records expected?",
+    "Should direct lineitem-to-part and lineitem-to-supplier relationships be exposed despite their redundant join paths?",
+    "Should composite logical keys be represented with reviewed calculated identifiers, views, or future Wren support rather than remaining documentation-only?"
+  ]
+}

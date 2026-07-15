@@ -1,0 +1,105 @@
+name: lineitem
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: lineitem
+columns:
+- name: l_orderkey
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Order identifier validated against orders.o_orderkey with zero snapshot orphans.
+- name: l_partkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Part component of the validated composite link to partsupp.
+- name: l_suppkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Supplier component of the validated composite link to partsupp.
+- name: l_linenumber
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H line number within an order; together with l_orderkey it was unique in the inspected snapshot.
+- name: l_quantity
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H line quantity value; unit requires expert confirmation.
+- name: l_extendedprice
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H extended-price value; currency and calculation policy require expert confirmation.
+- name: l_discount
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H discount value; whether it is a fraction, percentage, or another representation requires confirmation.
+- name: l_tax
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H tax value; whether it is a fraction, percentage, or another representation requires confirmation.
+- name: l_returnflag
+  type: VARCHAR(1)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H return-status flag. Values A, N, and R were observed; meanings remain unexpanded.
+- name: l_linestatus
+  type: VARCHAR(1)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H line-status code. Values F and O were observed; meanings require confirmation.
+- name: l_shipdate
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H ship date recorded for the line item.
+- name: l_commitdate
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H commit date recorded for the line item.
+- name: l_receiptdate
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H receipt date recorded for the line item.
+- name: l_shipinstruct
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H shipping-instruction code or label.
+- name: l_shipmode
+  type: VARCHAR(10)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H shipping-mode code or label; seven values were observed.
+- name: l_comment
+  type: VARCHAR(44)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H line-item comment text.
+cached: false
+properties:
+  description: TPC-H order lines. The inspected logical key is the composite l_orderkey plus l_linenumber.

@@ -1,0 +1,29 @@
+name: region
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: region
+columns:
+- name: r_regionkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H region identifier; non-null and unique across the inspected snapshot.
+- name: r_name
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H region name.
+- name: r_comment
+  type: VARCHAR(152)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Optional TPC-H comment text for the region.
+cached: false
+properties:
+  description: TPC-H regions referenced by nations. This is a reviewable schema-level candidate.
+primary_key: r_regionkey

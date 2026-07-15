@@ -1,0 +1,6 @@
+datasource: doris
+host: 127.0.0.1
+port: 19030
+database: data_agent_mvp
+user: root
+password: null

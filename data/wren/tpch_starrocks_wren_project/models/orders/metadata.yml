@@ -1,0 +1,65 @@
+name: orders
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: orders
+columns:
+- name: o_orderkey
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H order identifier; non-null and unique across the inspected snapshot.
+- name: o_custkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Customer identifier validated against customer.c_custkey with zero snapshot orphans.
+- name: o_orderstatus
+  type: VARCHAR(1)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H order-status code. Values F, O, and P were observed; meanings require confirmation before business use.
+- name: o_totalprice
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H total-price value; currency, tax treatment, and accounting interpretation require expert confirmation.
+- name: o_orderdate
+  type: DATE
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H order date. Observed snapshot range is 1992-01-01 through 1998-08-02.
+- name: o_orderpriority
+  type: VARCHAR(15)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H order-priority code or label; five values were observed.
+- name: o_clerk
+  type: VARCHAR(15)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H clerk code or label associated with the order.
+- name: o_shippriority
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H shipping-priority value; operational interpretation requires expert confirmation.
+- name: o_comment
+  type: VARCHAR(79)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H order comment text.
+cached: false
+properties:
+  description: TPC-H order headers with customer, status, price, date, priority, clerk, shipping-priority, and comment attributes.
+primary_key: o_orderkey

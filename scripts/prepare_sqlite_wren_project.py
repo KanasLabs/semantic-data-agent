@@ -13,6 +13,11 @@ from typing import Any
 import duckdb
 import yaml
 
+try:
+    from wren.type_mapping import parse_type as _wren_parse_type
+except Exception:  # pragma: no cover - fallback for non-Wren developer envs
+    _wren_parse_type = None
+
 
 @dataclass
 class Column:
@@ -258,9 +263,12 @@ def _introspect_relationships(conn: sqlite3.Connection, table_names: list[str]) 
             grouped.setdefault(int(row[0]), []).append(row)
         for fk_id, fk_rows in grouped.items():
             parent_table = str(fk_rows[0][2])
+            sorted_fk_rows = sorted(fk_rows, key=lambda item: int(item[1]))
+            if any(row[3] is None or row[4] is None for row in sorted_fk_rows):
+                continue
             conditions = [
                 f'"{child_table}"."{row[3]}" = "{parent_table}"."{row[4]}"'
-                for row in sorted(fk_rows, key=lambda item: int(item[1]))
+                for row in sorted_fk_rows
             ]
             relationships.append(
                 Relationship(
@@ -373,6 +381,15 @@ def _project_rules(
 
 
 def _sqlite_type_to_wren(raw_type: str) -> str:
+    if _wren_parse_type is not None:
+        parsed = _wren_parse_type(raw_type.strip(), "sqlite").strip()
+        if parsed:
+            return parsed
+        return "TEXT"
+    return _fallback_sqlite_type_to_wren(raw_type)
+
+
+def _fallback_sqlite_type_to_wren(raw_type: str) -> str:
     normalized = raw_type.strip().upper()
     if not normalized:
         return "TEXT"

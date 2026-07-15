@@ -1,13 +1,655 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-09
+Last updated: 2026-07-15
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
 
 ## 1. Current Status
 
-The project has a runnable Data Subagent MVP.
+The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
+Builder implementation.
+
+### Main Agent orchestration architecture note
+
+Added `docs/data_agent_main_orchestrator_architecture.md` to clarify the missing
+top-level orchestration layer. The current Data Subagent and Context Builder are
+separate runnable capabilities; a future Main Data Agent should identify the
+data source, check a Context Registry and Wren readiness state, then route to
+initial onboarding, online questioning, or semantic improvement. The note also
+defines a proposed Context lifecycle and keeps Wren mandatory in the query path.
+
+### Conversational Context revision goal
+
+Agreed on 2026-07-14: Context review and enrichment should be primarily driven
+by user natural language plus Codex, not by requiring users to manually edit
+Wren YAML.
+
+```text
+candidate Context
+-> Builder presents evidence, assumptions, questions, and tests
+-> user states business truth or requests changes in natural language
+-> Codex follows Wren generate-mdl skill and revises a new candidate version
+-> Builder independently validates, runs smoke/regression, and shows semantic diff
+-> user approves, requests another revision, or rejects
+-> explicit publish updates the Context Registry
+```
+
+The user/domain expert owns business truth and approval. Codex owns most
+investigation and implementation. Builder owns immutable versions, safety,
+provenance, deterministic acceptance, and publish control. Codex must not
+self-approve or self-publish.
+
+Current `enrich-with-codex --instructions` is only an execution precursor. The
+R0 filesystem contract is now implemented in
+`src/data_subagent_context_builder/revision_store.py` with tests in
+`tests/test_context_builder_revision_store.py`.
+
+R0 provides:
+
+- immutable candidate identity and new candidate versions per revision
+- separate candidate and revision state machines with legal transition checks
+- atomic JSON records and expected base-version/status checks
+- structured natural-language change requests
+- user-declared business-truth provenance
+- persistent clarification and approval HITL tasks, questions, and answers
+- a gate that prevents resume while required clarification remains unanswered
+- a gate that prevents revision approval without completed human approval
+- semantic-diff and review-packet storage contracts
+
+This is persistent and resumable rather than a blocking `codex exec`
+conversation. Codex must not write Registry state directly.
+
+R1 is now implemented in `src/data_subagent_context_builder/revision_engine.py`
+with tests in `tests/test_context_builder_revision_engine.py`:
+
+- `register-candidate` creates a bootstrap Registry record for an existing Wren project
+- `revise-candidate` creates a new candidate ID and copies the base Wren project
+- generated `.wren`, `target`, Python cache files are excluded from the copy
+- the original candidate project remains unchanged
+- Codex runs with the copied candidate project as its writable working directory
+- the revision prompt makes Wren `generate-mdl` skill authoritative
+- Codex cannot approve, publish, or write Registry lifecycle records
+- outer Wren validate/build/optional dry-run and bounded repair are reused
+- prompts, last messages, validation JSON, instruction, and result are revision artifacts
+- successful execution enters `REVIEW_REQUIRED`; failed acceptance enters
+  `VALIDATION_FAILED` while preserving the candidate for inspection
+
+Real prompt-only CLI verification against the local StarRocks candidate:
+
+```text
+base candidate: candidate_94c1e96afc06442dbadce2d068798770
+revision: revision_732dc5a652a04c52b1da8e1d114aaa6a
+new candidate: candidate_4ed134e3f5164faf8d4b0103e49b57cb
+instruction: total_amount is CNY; only completed orders are realized revenue
+result: REVISION_REQUESTED / DRAFT, Codex not executed
+base/candidate orders metadata SHA256: identical
+workspace: data/tmp/context_revision_r1_smoke/registry
+```
+
+At the R1 milestone, clarification classification, semantic diff, evals, and
+fresh StarRocks investigation were intentionally deferred; later sections
+record their implemented state.
+
+R2 is now implemented:
+
+- Codex must write `onboarding/revision_outcome.json` with status
+  `completed` or `clarification_required`
+- the outer Builder validates the outcome schema during every Codex/repair round
+- stale outcomes copied from a previous candidate are removed before execution
+- clarification outcomes create persistent `HumanTaskType.CLARIFICATION` tasks
+- semantic diff compares Models, fields, Relationships, rules, SQL Examples,
+  assumptions, unresolved questions, and eval coverage
+- `revise-candidate --execute` runs generated smoke eval by default
+- `--regression-suite` may be repeated to run previously passing business suites
+- eval execution reuses `python -m data_subagent.cli eval` against the candidate
+  Wren project instead of duplicating the online Data Subagent construction
+- eval failure moves both revision and candidate to `SMOKE_FAILED`
+- `--no-evals` is the explicit debug/isolated-environment escape hatch
+
+The generated smoke cases are conservative row-count/optional relationship
+checks. They establish basic usability, not that a requested currency, metric,
+or accounting rule is correct. Business-semantic suites such as
+`data/evals/cases/starrocks_semantic_improvement_candidates.jsonl` must be
+passed through `--regression-suite`. A real eval requires the existing local
+DeepSeek key and provider connectivity; no key is copied into revision artifacts.
+
+At the R2 milestone, follow-up review and publication behavior remained
+deferred; the R3 section records their implemented state.
+
+R3 is now implemented:
+
+- every accepted revision writes `review_packet.json` with semantic diff,
+  provenance, outer validation, smoke result, and regression result
+- `answer-review-question` records a natural-language answer as
+  `user_declared_business_truth`
+- `resume-revision` runs a new Codex execution over the same candidate and
+  revision after all required clarification questions are answered
+- resume prompts and repair rounds retain the persisted human answers
+- resume artifacts are isolated under `revisions/<id>/resumes/resume_<n>/`
+- `review-candidate` returns candidate state, revision state, review packet,
+  semantic diff, and human tasks
+- `approve-candidate` creates and answers a separate approval task with
+  `user_review_decision` provenance
+- `reject-candidate` records the explicit rejection reason
+- calling `revise-candidate` on a candidate under review marks the previous
+  revision `CHANGES_REQUESTED` and creates another immutable candidate version
+- `publish-candidate` requires `APPROVED` and atomically updates
+  `contexts/<context_id>/published.json`
+- publication history is append-only by event file; `rollback-context` writes a
+  new rollback event and points to a previously published candidate
+- approval and publish remain separate operations; Codex performs neither
+
+The published pointer is now usable by a future Main Agent, but the current
+online Data Subagent does not yet route through it.
+
+### Controlled StarRocks revision re-investigation
+
+Added `src/data_subagent_context_builder/revision_starrocks.py` and integrated
+it with `revise-candidate` and `resume-revision`.
+
+- access is opt-in for every execution and is never inherited
+- host, database, and user must be supplied together
+- Catalog/Database allowlists, maximum rows, and timeout are explicit
+- password values are never written to prompts, access artifacts, or evidence
+- fresh data may establish observable facts but not business policy
+- missing evidence means access was authorized but not needed
+- existing evidence must include an executed controlled query
+- evidence containing returned result rows fails outer acceptance
+- valid evidence is archived with the revision or resume execution
+
+Real prompt-only verification against the local StarRocks candidate:
+
+```text
+revision: revision_fe5e7d48897641d380dbed9a1113e8f4
+candidate: candidate_d16cd66a1efb4bc393f2d92ebb92a1b1
+scope: default_catalog.data_agent_mvp
+max rows: 20
+query timeout: 5 seconds
+Codex/database execution: not run
+password_value_persisted: false
+```
+
+Security boundary: the StarRocks account must itself be read-only and scoped to
+the allowed database. Builder SQL allowlists are defense in depth and cannot
+replace database grants.
+
+Detailed design:
+
+```text
+docs/context_builder_conversational_revision_plan.md
+```
+
+### StarRocks 3.5 local MVP fixture
+
+Added a reproducible local StarRocks shared-nothing all-in-one fixture under
+`infra/starrocks/`, with lifecycle automation in `scripts/starrocks_mvp.ps1`
+and a small Wren project at `data/wren/starrocks_mvp_wren_project`. The fixture
+uses Wren's `doris` datasource against StarRocks's MySQL-compatible port `9030`,
+loads deterministic customer/order data, and is intended only for local MVP
+validation. Setup and verification commands are documented in
+`docs/starrocks_mvp_setup.md`.
+
+First real verification on 2026-07-13:
+
+```text
+container: data-agent-starrocks (healthy)
+image: starrocks/allin1-ubuntu:3.5.18
+host ports: 18030 / 18040 / 19030
+fixture rows: 5 customers, 8 orders
+Wren datasource: doris
+Wren context validate: 2 models, 0 views, 1 relationship
+Wren context build: OK
+Wren dry-run: OK
+Wren real grouped query: OK
+Data Subagent: success, "There are 8 orders."
+trace_id: trace_450e96f7bdeb4373b91fc8a6649a6fe0
+smoke eval: 3/3 passed
+eval run_id: 20260713-175049-starrocks_mvp_smoke
+```
+
+StarRocks smoke eval traces:
+
+```text
+order count: trace_3d4980e2fc5449c492483598c7c26ee6
+orders by status: trace_7068983e71b9401995988147d17bda65
+realized revenue: trace_295ceda0754b4129b09f8259835f8d82
+```
+
+StarRocks/Wren pitfalls found during setup:
+
+- Wren's `doris` connector uses the MySQL protocol driver. Install
+  `wrenai[mysql]==0.12.0`; otherwise profile validation/dry-run fails with
+  `No module named 'MySQLdb'`.
+- Local ports `8030`, `8040`, and `9030` may already belong to another
+  StarRocks container. This fixture defaults to host ports `18030`, `18040`,
+  and `19030` while retaining the standard container ports.
+- Docker Hub was unreachable from Docker Desktop during the first run, but
+  `starrocks/allin1-ubuntu:3.5.18` was already cached locally. The setup doc
+  records the mirror-tag fallback.
+- The realized-revenue eval matched the Gold SQL result (`1131.70`), but the
+  result summarizer displayed `$1,131.70` even though the Wren column description
+  says CNY. Eval cases now support `expected_answer_contains` and
+  `expected_answer_not_contains`, and the unresolved case is preserved in
+  `data/evals/cases/starrocks_semantic_improvement_candidates.jsonl`. Keep this
+  suite failing until a future Semantic Improvement Loop fixes the behavior and
+  passes both the candidate suite and normal regressions.
+
+Explicit semantic-improvement baseline on 2026-07-14:
+
+```text
+run_id: 20260714-093727-starrocks_semantic_improvement_baseline
+trace_id: trace_c29d876e14db44fcb5f9efdeb34ce2ee
+result: 0/1 passed
+SQL/result equivalence: passed
+answer: "The total realized revenue is 1131.70."
+failure: answer missing expected fragment(s): ['CNY']
+```
+
+The original trace invented `$`; the new baseline omitted the unit. Treat both
+as the same root issue: the summarization stage does not reliably carry currency
+semantics from Wren Context into the final answer.
+
+### Context Builder status snapshot
+
+The upstream Wren Context Builder is also runnable. Its first-line path is now:
+
+```text
+database / existing context
+-> deterministic schema and runtime preparation
+-> Codex follows Wren's installed generate-mdl skill
+-> Codex creates or edits Wren MDL
+-> outer Wren validate / build / dry-run
+-> bounded Codex repair rounds on failure
+-> onboarding report and smoke-eval artifacts
+```
+
+Current implementation:
+
+- Package: `src/data_subagent_context_builder/`
+- Commands: `inspect`, `generate-from-db`, `generate-schema-draft`, `validate`,
+  `enrich-with-codex`, `make-smoke-eval`, `starrocks-query`,
+  `generate-from-starrocks`, `register-candidate`, `revise-candidate`,
+  `retry-revision-evals`, `review-candidate`, `answer-review-question`, `resume-revision`,
+  `approve-candidate`, `reject-candidate`, `publish-candidate`, and
+  `rollback-context`.
+- `generate-from-db` defaults to the skill-first Codex + Wren path. It prepares
+  facts and runtime state but does not deterministically author MDL YAML.
+- `generate-schema-draft` is the explicit schema-level fallback/debug path.
+- `generate-from-db --execute` runs Codex, then independently runs Wren
+  validate/build/dry-run. Failed checks are returned to Codex for at most
+  `--max-repair-rounds` repair rounds.
+- Every round preserves its prompt, Codex last message, and structured Wren
+  validation output under the target project's `onboarding/` directory.
+- A real BIRD Mini-Dev `debit_card_specializing` run completed with 5 models,
+  4 relationships, successful Wren validate/build/dry-run, and no repair round.
+- Latest full verification: `81` unit tests passed.
+
+Current architectural classification: this is a bounded agentic workflow tool,
+not yet a standalone subagent. The workflow stages and stopping conditions are
+chosen by deterministic code. A future subagent would need a strategy layer
+that selects onboarding paths, classifies semantic gaps and failures, asks for
+business clarification, schedules enrichment, and decides when quality is
+sufficient.
+
+### First real natural-language revision acceptance
+
+Completed on 2026-07-15 against a clean StarRocks Context baseline:
+
+```text
+base candidate: candidate_8903bce7af8c4b99bc51bec06514de6a
+revision: revision_e4af8208c51040f38b6a6877a58607ff
+candidate: candidate_1e1f8ebee1484aad8530cee1d773dfc0
+instruction: total_amount is CNY; only completed orders are realized revenue
+final state: REVIEW_REQUIRED / REVIEW_REQUIRED
+publication: not performed
+```
+
+The real Codex execution followed the installed Wren `generate-mdl` skill and
+changed only the isolated candidate. It updated `orders.status` and
+`orders.total_amount` descriptions, changed the general business rule, added a
+completed-only realized-revenue SQL example, and wrote a valid structured
+revision outcome. Wren validate/build/dry-run passed with zero Codex repair
+rounds. The original clean candidate remains unchanged.
+
+Final acceptance results:
+
+```text
+generated schema/relationship smoke: 3/3 passed
+existing StarRocks regression: 3/3 passed
+completed-only CNY semantic regression: 1/1 passed
+semantic result: 721.80 CNY
+semantic trace: trace_260065c826c54db4ac635798959fd9e2
+relationship trace: trace_cd5475b7fd354b998ba38a720e70a0af
+unit tests: 81 passed
+```
+
+`semantic_diff.json` records the two field-description changes, rule change,
+new SQL example, assumptions, and test coverage. `review_packet.json` records
+the user-declared business truth, independent validation, eval results, and no
+unresolved questions. The candidate then completed a real HITL approval on
+2026-07-15 after the review summary and validation results were presented to
+the user:
+
+```text
+candidate/revision state: APPROVED / APPROVED
+approval task: task_7442feb5d367426b8cff4534f8e6b996
+approval answer: answer_1775ab8bc0ee410dbaa8aab1383247e5
+approval provenance: user_review_decision
+publication: performed after separate explicit user confirmation
+```
+
+This verifies the human approval gate rather than only reaching
+`REVIEW_REQUIRED`. Codex did not self-approve, and approval did not implicitly
+publish the candidate. The user then separately confirmed publication:
+
+```text
+publication: publication_35185565607f4d0f9c4f4d5b268a11f6
+context: data_agent_mvp_revision_acceptance
+published candidate/version: candidate_1e1f8ebee1484aad8530cee1d773dfc0 / 2
+previous candidate: none
+candidate state: PUBLISHED
+published pointer: contexts/data_agent_mvp_revision_acceptance/published.json
+```
+
+The pointer and append-only publication-history event contain the same
+publication ID and candidate. This completes the first real natural-language
+revision, automated acceptance, HITL approval, and explicit publish lifecycle.
+
+Two generated relationship-smoke pitfalls were found during acceptance. A
+question that requests a fixed number of rows can cause the LLM to emit
+`LIMIT`, while Wren CLI also applies its own query limit. A detail query can
+also produce `left.*, right.*`, which Wren CLI 0.12 cannot serialize to JSON
+when output column names repeat. Relationship smoke now asks for a relationship
+row count and requires `count` plus both model names. This still exercises the
+relationship while producing one uniquely named result column. Business truth
+remains covered by explicit regression suites rather than generated smoke.
+
+### Context Builder StarRocks controlled-query foundation
+
+Added on 2026-07-14:
+
+```text
+src/data_subagent_context_builder/starrocks_query.py
+tests/test_context_builder_starrocks_query.py
+```
+
+`starrocks-query` is the safe database primitive used by the implemented
+`generate-from-starrocks` Codex workflow. It intentionally does not implement a
+fixed StarRocks schema crawler.
+
+Implemented controls:
+
+- Connects through StarRocks's MySQL protocol using the installed
+  `mysqlclient` / `MySQLdb` driver.
+- Allows only scoped `SHOW`, `DESCRIBE`, `SELECT`, `WITH`, and `EXPLAIN` forms.
+- Rejects mutation, multiple statements, unsafe `SHOW` commands, blocked
+  functions, and cross-catalog/database references.
+- Enforces Catalog/Database allowlists, query timeout, and maximum returned
+  rows. `SHOW CATALOGS` and `SHOW DATABASES` results are filtered to the
+  allowlist.
+- Reads passwords from an environment variable only. The explicit
+  `--allow-empty-password` option exists only for the isolated local fixture.
+- Writes JSONL evidence for executed, rejected, and failed queries. Evidence
+  omits returned values by default and records columns, counts, truncation,
+  duration, and a result hash.
+- Disables arbitrary `information_schema` queries by default; Codex can use the
+  allowlisted `SHOW` / `DESCRIBE` surface for the first discovery pass.
+
+Real verification against the existing local StarRocks 3.5 fixture:
+
+```text
+endpoint: 127.0.0.1:19030
+catalog allowlist: default_catalog
+database allowlist: data_agent_mvp
+SHOW CATALOGS: OK, filtered to default_catalog
+SHOW DATABASES: OK, filtered to data_agent_mvp
+SHOW TABLES: OK, customers and orders
+DESCRIBE orders: OK, 5 columns
+limited SELECT sample: OK, 3 rows
+DELETE attempt: rejected before database execution
+evidence: 6 JSONL records, 0 records containing rows, no password field
+```
+
+WrenAI CLI `0.12.0` still has no datasource named `starrocks`. The existing
+fixture has already verified Wren's `doris` datasource against StarRocks, so
+future onboarding should use that proven compatibility path rather than assume
+an unverified native StarRocks profile.
+
+`generate-from-starrocks` now initializes an empty Wren project, imports a Wren
+`doris` profile with an environment-variable password reference, binds the
+profile to the project, and gives Codex only the controlled query command. Codex
+produces `discovery_snapshot.json`, `schema_manifest.json`, Wren Models,
+Relationships, rules, and examples. The outer Builder validates Wren
+validate/build/dry-run plus the existence and JSON validity of discovery,
+manifest, and executed query evidence before accepting a round.
+
+### Real StarRocks Context Builder candidate onboarding
+
+Completed a real skill-first onboarding pass on 2026-07-14 against the local
+allowlisted StarRocks fixture through the Builder-owned `starrocks-query`
+command only.
+
+Workspace:
+
+```text
+project: data/tmp/starrocks_context_builder_real/wren_project
+wren home: data/tmp/starrocks_context_builder_real/wren_home
+evidence: onboarding/query_evidence.jsonl
+snapshot: onboarding/discovery_snapshot.json
+manifest: onboarding/schema_manifest.json
+```
+
+Discovery result:
+
+```text
+scope: default_catalog.data_agent_mvp
+tables: customers, orders
+evidence records: 24 executed read-only queries
+rows at snapshot: 5 customers, 8 orders
+physical keys: StarRocks DUPLICATE KEY, not enforced unique constraints
+secondary indexes: none reported by SHOW INDEX
+partitions: one unpartitioned physical partition per table
+type normalization: wren utils parse-type --dialect mysql
+```
+
+The current snapshot supports logical Wren keys for `customers.customer_id`
+and `orders.order_id`: each was non-null and unique across the inspected rows.
+This is explicitly documented as a snapshot assumption because StarRocks DDL
+does not enforce uniqueness for these `DUPLICATE KEY` tables.
+
+One relationship was accepted for the reviewable candidate:
+
+```text
+orders.customer_id -> customers.customer_id
+join type: MANY_TO_ONE
+coverage: 8/8 order rows matched
+orphans: 0
+customer identifiers with multiple orders: 3 of 5
+maximum observed orders per customer identifier: 2
+database foreign key: none declared
+```
+
+Generated candidate assets:
+
+```text
+models/customers/metadata.yml
+models/orders/metadata.yml
+relationships.yml
+knowledge/rules/general.md
+knowledge/sql/order_count.md
+knowledge/sql/orders_by_status.md
+knowledge/sql/customer_order_counts.md
+```
+
+The Wren project internal namespace was set to the skill-recommended defaults
+`catalog: wren` and `schema: public`; physical StarRocks coordinates remain in
+each model's `table_reference`. No cubes, calculated metrics, currency labels,
+status-based revenue rules, or inferred time semantics were added.
+
+Verification:
+
+```text
+wren context validate: Valid - 2 models, 0 views, 1 relationships.
+wren context build: Built target/mdl.json
+wren dry-run order count: OK
+wren dry-run all 3 generated SQL examples: OK
+outer artifact validation: 24 executed evidence records, valid snapshot and manifest
+```
+
+Pitfall: Codex ran optional `wren memory index`, which produced no output and
+timed out on Windows. Although Codex finished the candidate and wrote its final
+message, the old `capture_output` implementation continued waiting on inherited
+stdout/stderr handles until the outer 15-minute timeout. The prompt now forbids
+Wren memory index/fetch/recall and edits outside the target Wren project.
+`CodexCliRunner` now captures output through temporary files, returns structured
+timeout code `124`, and terminates only its own process tree on timeout. Windows
+fake-process tests cover normal output collection and timeout cleanup.
+
+The first real run therefore required a manual invocation of the same outer
+acceptance commands after the transport timeout. All Wren and artifact checks
+passed. The repaired runner and fully automatic StarRocks outer acceptance path
+are covered by unit tests; repeat the real fixture run when changing process or
+prompt behavior.
+
+The candidate remains non-production and requires expert answers for key
+enforcement/deduplication, `total_amount` unit and accounting semantics,
+`order_date` / `signup_date` event meaning, status and region taxonomies, and
+whether customer references are guaranteed for late-arriving data.
+
+### TPC-H StarRocks Context Builder candidate onboarding
+
+Completed a full skill-first onboarding pass on 2026-07-14 for all eight TPC-H
+tables in the local allowlisted `default_catalog.tpch_sf001` database. Database
+discovery and relationship validation used only the Builder-owned
+`starrocks-query` command.
+
+Workspace:
+
+```text
+project: data/wren/tpch_starrocks_wren_project
+evidence: onboarding/starrocks_query_evidence.jsonl
+snapshot: onboarding/discovery_snapshot.json
+manifest: onboarding/schema_manifest.json
+report: onboarding_report.md
+```
+
+Discovery result:
+
+```text
+controlled queries: 69 executed, 0 truncated
+tables: customer, lineitem, nation, orders, part, partsupp, region, supplier
+columns: 61
+row counts: 5 / 25 / 100 / 1,500 / 2,000 / 8,000 / 15,000 / 60,175
+physical design: StarRocks DUPLICATE KEY, one unpartitioned partition each
+distribution: one HASH bucket each
+secondary indexes: none reported by SHOW INDEX
+type normalization: wren utils parse-type --dialect mysql
+```
+
+Six snapshot-unique single-column logical keys were emitted as Wren primary
+keys. The `partsupp (ps_partkey, ps_suppkey)` and
+`lineitem (l_orderkey, l_linenumber)` composite keys were non-null and unique
+but were left as documented logical keys rather than misrepresented as
+single-column Wren primary keys. StarRocks `DUPLICATE KEY` is a storage/sort
+model and does not enforce relational uniqueness.
+
+Eight `MANY_TO_ONE` relationships were accepted after complete join coverage
+and zero-orphan checks: nation-region, supplier-nation, customer-nation,
+orders-customer, partsupp-part, partsupp-supplier, lineitem-orders, and the
+composite lineitem-partsupp relationship. Direct lineitem-part and
+lineitem-supplier candidates also had full coverage but were rejected as
+redundant paths through partsupp.
+
+Generated candidate assets:
+
+```text
+models/*/metadata.yml: 8 models
+relationships.yml: 8 relationships
+knowledge/rules/general.md: conservative semantic guardrails
+knowledge/sql/*.md: 4 schema-level examples
+target/mdl.json: compiled candidate
+```
+
+Verification:
+
+```text
+wren context validate: Valid - 8 models, 0 views, 8 relationships.
+wren context build: Built target/mdl.json
+wren dry-run order count: OK
+wren dry-run all 4 generated SQL examples: OK
+wren memory index: incomplete; model initialization failed, then timed out
+```
+
+No cubes, calculated business metrics, currencies, revenue formulas, default
+time fields, or company-specific policies were inferred. Expert review remains
+required for key enforcement, units/currencies, discount/tax representation,
+status/code meanings, date selection, late-arriving data, composite-key
+representation, and whether redundant direct lineitem joins should be exposed.
+
+Memory-index pitfall re-confirmed: the first `wren memory index` attempt failed
+inside Hugging Face embedding-model initialization under restricted networking.
+An approved retry produced no output and timed out after 60 seconds. Its two
+orphaned Wren/Python indexing processes were stopped without touching the
+separate long-running Context Builder Python process. This does not affect the
+successful Wren validate/build/dry-run acceptance checks.
+
+Data Subagent TPC-H smoke verification:
+
+```text
+first run: 20260714-123911-tpch_starrocks_smoke, 4/5
+first-run failure cause: eval expected physical alias n_name, while equivalent SQL used alias nation
+gold execution equivalence for the case: passed
+corrected eval: compare business values rather than a non-semantic alias
+rerun: 20260714-124142-tpch_starrocks_smoke_rerun, 5/5
+```
+
+Rerun trace IDs:
+
+```text
+order count: trace_d65d1ef6019a403b86d2ad0602cbfb65
+lineitem count: trace_c5c6860cd5bd439295382f54b4dce393
+orders by status: trace_5a6aace4f29d434aaa185c7ae688ccc3
+orders by customer nation: trace_c4610ca357734c3d93f55a44fdef7042
+lineitem-partsupp composite join: trace_97976c46fe5e4f05b18583a7b47e84e9
+```
+
+The 30-minute Codex transport timeout happened after the candidate and final
+message were written. The Builder now supports an auditable
+`accepted_after_timeout` state only when models, snapshot, manifest, executed
+query evidence, Wren validate/build, and optional dry-run all pass independently.
+Timeout alone never accepts a candidate.
+
+### New Session Reading Order
+
+Always start with:
+
+```text
+AGENTS.md
+docs/data_subagent_progress_and_pitfalls.md
+```
+
+For the online Data Subagent runtime, continue with:
+
+```text
+docs/data_subagent_architecture_workflow_react.html
+docs/data_subagent_mvp_real_case.html
+src/data_subagent/
+```
+
+For WrenAI context / MDL onboarding, continue with:
+
+```text
+new_session_prompt_for_wren_context_builder.md
+docs/wren_context_builder_plan.md
+docs/wren_context_builder_feasibility.md
+docs/wren_context_builder_methods.html
+src/data_subagent_context_builder/
+```
+
+Before editing, run `git status --short`. The Context Builder implementation,
+tests, docs, and generated presentation/logbook artifacts may be uncommitted.
+Preserve all existing changes and never reset or discard them.
 
 Implemented runtime:
 
@@ -159,6 +801,7 @@ New upstream workstream prompt on 2026-07-09:
 ```text
 new_session_prompt_for_wren_context_builder.md
 docs/wren_context_builder_plan.md
+docs/wren_context_builder_feasibility.md
 ```
 
 This workstream is separate from the Data Subagent runtime. Its goal is to
@@ -167,6 +810,402 @@ Onboarding Tool that can take a database or dbt project and produce a Wren
 project, validation/build results, onboarding report, and smoke eval cases.
 The builder should use WrenAI native capabilities first and only use scripts as
 glue/fallback scaffolding.
+
+First Context Builder feasibility pass on 2026-07-09:
+
+- Local Wren CLI is `wrenai 0.12.0`.
+- `wren context import --help` and `wren profile import --help` both list
+  `dbt` as the current import source.
+- `wren context init/validate/build` support OSI/MDL inputs, but this is not
+  native arbitrary database introspection.
+- `wren skills get generate-mdl` is the installed Wren workflow for generic
+  database onboarding: agent/script inspects schema, Wren handles project
+  scaffolding, type normalization, validate/build, and query primitives.
+- `wren docs connection-info --format json` exposes datasource profile fields
+  and should drive profile template/report generation.
+- `scripts/prepare_sqlite_wren_project.py` is reusable as the first
+  SQLite/DuckDB fallback seed, while BIRD dataset discovery/eval conversion
+  should stay benchmark glue.
+
+First Context Builder implementation on 2026-07-09:
+
+```text
+src/data_subagent_context_builder/
+tests/test_context_builder.py
+```
+
+Implemented commands:
+
+```powershell
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent_context_builder.cli inspect ...
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent_context_builder.cli generate-from-db ...
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent_context_builder.cli validate ...
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent_context_builder.cli enrich-with-codex ...
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m data_subagent_context_builder.cli make-smoke-eval ...
+```
+
+`generate-from-db` currently supports SQLite input through the existing
+SQLite-to-DuckDB fallback flow. It writes a DuckDB-backed Wren project/profile,
+runs Wren `context validate`, `context build`, optional `dry-run`, and can write
+an onboarding report. This is still schema-level draft MDL, not automatic
+business semantic modeling.
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest tests.test_context_builder
+Ran 2 tests
+OK
+
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
+Ran 22 tests
+OK
+```
+
+Real Wren smoke on a temporary SQLite fixture:
+
+```text
+ok: true
+models: customers, orders
+relationship_count: 1
+context validate: Valid - 2 models, 0 views, 1 relationships.
+context build: built target/mdl.json
+dry-run "select count(*) as order_count from orders": OK
+```
+
+Wren-native Context Builder pass on 2026-07-10:
+
+- SQLite fallback generation now uses Wren type normalization through
+  `wren.type_mapping.parse_type(raw_type, "sqlite")`.
+- Context Builder `generate-from-db` now scaffolds the target project with
+  `wren context init --empty` before writing model metadata.
+- The remaining non-native glue is still required for SQLite: schema
+  introspection with SQLite PRAGMA, SQLite-to-DuckDB conversion, and YAML
+  model/relationship writing. WrenAI CLI `0.12.0` still has no verified generic
+  `context import database` command.
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
+Ran 27 tests
+OK
+
+generate-from-db real temporary SQLite smoke:
+context init --empty --force: OK
+type normalization: INTEGER -> INT, REAL -> FLOAT, DATETIME -> DATETIME
+context validate: Valid - 2 models, 0 views, 1 relationships.
+context build: Built 2 models, 0 views
+dry-run "select count(*) as order_count from orders": OK
+```
+
+Skill-first Context Builder decision on 2026-07-10:
+
+- `generate-from-db` is now the recommended Wren `generate-mdl` skill path.
+- For SQLite, it prepares factual inputs only: Wren `context init --empty`,
+  SQLite-to-DuckDB runtime conversion, Wren-normalized schema manifest, DuckDB
+  profile, and a Codex prompt that requires reading
+  `wren skills get generate-mdl` before writing MDL.
+- It does not write `models/*/metadata.yml` by default.
+- The old deterministic SQLite YAML generation is retained as explicit
+  `generate-schema-draft` / `generate-from-db --mode draft` fallback.
+- This keeps MDL authoring unified around Wren's skill workflow while preserving
+  reproducible glue for schema facts and validation substrates.
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
+Ran 30 tests
+OK
+
+generate-from-db real temporary SQLite smoke:
+ok: true
+mode: skill
+context init --empty --force: OK
+schema_manifest_path: wren_project/onboarding/schema_manifest.json
+codex.executed: false
+models/orders/metadata.yml exists: false
+
+generate-schema-draft fallback smoke:
+context validate: Valid - 2 models, 0 views, 1 relationships.
+context build: Built 2 models, 0 views
+dry-run "select count(*) as order_count from orders": OK
+```
+
+Codex runtime scaffold added to Context Builder:
+
+```text
+src/data_subagent_context_builder/codex_runtime.py
+tests/test_context_builder_codex_runtime.py
+```
+
+Purpose:
+
+- Keep Codex agent work in upstream Wren context onboarding/enrichment.
+- Do not place Codex SDK/CLI inside the online Data Subagent ask path.
+- Generate a Codex prompt that tells the agent to read project docs, inspect
+  Wren's installed `generate-mdl` skill, edit only the target Wren project, and
+  rerun Wren validate/build/dry-run.
+- Default behavior is prompt-only. `--execute` is required before invoking
+  `codex exec`.
+
+Local availability check:
+
+```text
+.\.venv-wren\python.exe -m pip show openai-codex
+WARNING: Package(s) not found: openai-codex
+
+codex --help
+Codex CLI available, including exec and experimental app-server commands.
+```
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest tests.test_context_builder_codex_runtime tests.test_context_builder
+Ran 5 tests
+OK
+
+Prompt-only enrich-with-codex smoke:
+ok: true
+executed: false
+```
+
+Smoke eval generation added:
+
+```text
+src/data_subagent_context_builder/smoke_eval.py
+tests/test_context_builder_smoke_eval.py
+```
+
+Purpose:
+
+- Read Wren model metadata.
+- Emit conservative Data Subagent eval JSONL cases.
+- Default to row-count questions per model because they are stable onboarding
+  health checks for schema-level draft MDL.
+- Keep relationship join smoke optional via `--include-relationship-case`.
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest tests.test_context_builder_smoke_eval
+Ran 2 tests
+OK
+
+make-smoke-eval against data/wren/jaffle_wren_project:
+ok: true
+emitted: 3
+eval_ids: jaffle_shop_customers_count, jaffle_shop_orders_count, jaffle_shop_stg_customers_count
+```
+
+Context Builder inspect command added on 2026-07-10:
+
+```text
+src/data_subagent_context_builder/inspect.py
+tests/test_context_builder_inspect.py
+```
+
+Purpose:
+
+- Read SQLite schema facts without generating DuckDB, Wren project files, or
+  Wren home state.
+- Emit JSON and optional Markdown reports for Wren `generate-mdl` onboarding,
+  Codex prompts, and human semantic review.
+- Preserve warnings for incomplete SQLite FK metadata while preventing bad
+  relationships from entering generated Wren YAML.
+
+The SQLite fallback generator now skips FK rows whose child or parent column is
+missing in SQLite `PRAGMA foreign_key_list` output. This prevents bad generated
+join conditions such as:
+
+```text
+"yearmonth"."CustomerID" = "customers"."None"
+```
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
+Ran 33 tests
+OK
+
+inspect against BIRD Mini-Dev debit_card_specializing:
+table_count: 5
+relationship_count: 0
+warnings: 2 incomplete SQLite FK metadata warnings
+report_path: data/tmp/context_builder_inspect_smoke/schema_report.md
+json_output_path: data/tmp/context_builder_inspect_smoke/schema_report.json
+```
+
+Context Builder outer Codex repair loop added on 2026-07-10:
+
+```text
+src/data_subagent_context_builder/skill_onboarding.py
+src/data_subagent_context_builder/codex_runtime.py
+src/data_subagent_context_builder/report.py
+tests/test_context_builder_skill_onboarding.py
+```
+
+Purpose:
+
+- Keep `generate-from-db --mode skill` as the first-line Codex + Wren
+  `generate-mdl` workflow.
+- When `--execute` is used, the outer builder now runs Codex in bounded rounds,
+  then runs Wren `context validate`, `context build`, and optional `dry-run`
+  itself.
+- If outer Wren validation fails, the builder writes a repair prompt containing
+  the structured Wren command outputs and invokes Codex again, up to
+  `--max-repair-rounds`.
+- This is the deterministic outer validation/repair guardrail around Codex's
+  own in-process skill-following loop.
+
+New CLI controls:
+
+```powershell
+--max-repair-rounds 2
+--no-post-validate
+```
+
+Artifacts:
+
+```text
+<wren_project>/onboarding/prompts/round_<n>.md
+<wren_project>/onboarding/codex_last_messages/round_<n>.md
+<wren_project>/onboarding/validation/round_<n>.json
+```
+
+Onboarding reports now include Codex execution rounds and final outer Wren
+validation output.
+
+Verification:
+
+```text
+$env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
+Ran 34 tests
+OK
+```
+
+Prompt boundary refinement on 2026-07-10:
+
+- The generated Codex prompt now states that Wren's installed `generate-mdl`
+  skill takes precedence if it conflicts with the prompt.
+- `schema_manifest.json` is described as seed evidence, not the complete
+  semantic model.
+- Codex is explicitly allowed and expected to inspect the DuckDB runtime
+  directly when the Wren skill calls for schema checks, sample queries,
+  relationship validation, or orphan checks.
+- Relationships, descriptions, rules, and examples should be grounded in the
+  manifest, runtime data, user instructions, or other explicit evidence rather
+  than guessed from names alone.
+
+Real BIRD Context Builder Codex + Wren skill-first run on 2026-07-10:
+
+Input:
+
+```text
+data/external/bird_mini_dev/raw/minidev/minidev/MINIDEV/dev_databases/debit_card_specializing/debit_card_specializing.sqlite
+```
+
+Command shape:
+
+```powershell
+$env:PYTHONPATH='src'
+.\.venv-wren\python.exe -m data_subagent_context_builder.cli `
+  --project-root . `
+  generate-from-db `
+  --sqlite-path data\external\bird_mini_dev\raw\minidev\minidev\MINIDEV\dev_databases\debit_card_specializing\debit_card_specializing.sqlite `
+  --project-name bird_debit_card_context_builder_real `
+  --project-dir data\tmp\context_builder_bird_real\wren_project `
+  --duckdb-path data\tmp\context_builder_bird_real\bird_debit_card.duckdb `
+  --wren-home data\tmp\context_builder_bird_real\wren_home `
+  --smoke-sql "select count(*) as transaction_count from transactions_1k" `
+  --prompt-output data\tmp\context_builder_bird_real\generate_mdl_prompt.md `
+  --report-path data\tmp\context_builder_bird_real\onboarding_report.md `
+  --execute `
+  --max-repair-rounds 1 `
+  --codex-bin <user-home>\AppData\Roaming\npm\codex.cmd `
+  --force
+```
+
+Result:
+
+```text
+Codex round 0: returncode 0
+repair_rounds_used: 0
+outer context_validate: Valid - 5 models, 0 views, 4 relationships.
+outer context_build: Built target/mdl.json
+outer dry_run "select count(*) as transaction_count from transactions_1k": OK
+```
+
+Generated artifacts:
+
+```text
+data/tmp/context_builder_bird_real/wren_project/models/*/metadata.yml
+data/tmp/context_builder_bird_real/wren_project/relationships.yml
+data/tmp/context_builder_bird_real/wren_project/knowledge/rules/general.md
+data/tmp/context_builder_bird_real/wren_project/knowledge/sql/*.md
+data/tmp/context_builder_bird_real/wren_project/target/mdl.json
+data/tmp/context_builder_bird_real/wren_project/onboarding/prompts/round_0.md
+data/tmp/context_builder_bird_real/wren_project/onboarding/codex_last_messages/round_0.md
+data/tmp/context_builder_bird_real/wren_project/onboarding/validation/round_0.json
+data/tmp/context_builder_bird_real/onboarding_report.md
+```
+
+Codex added 4 verified relationships. The input SQLite FK metadata was
+incomplete, so this confirms the intended split: deterministic inspect/generator
+does not emit bad FK joins, while Codex + Wren validation can add defensible
+relationships after checking the runtime data.
+
+New fixes from the real run:
+
+- `--codex-bin` may need `<user-home>\AppData\Roaming\npm\codex.cmd` on
+  Windows because Python subprocess cannot reliably launch the npm PowerShell
+  shim `codex.ps1` by the bare name `codex`.
+- Context Builder CLI now reconfigures stdout to UTF-8 so printing JSON with
+  symbols such as `€`, `—`, or `→` does not fail under a GBK console.
+- Skill-first reports now refresh model and relationship counts from the actual
+  Codex-generated Wren project before writing the final report.
+
+Post-run validation:
+
+```powershell
+$env:PYTHONPATH='src'
+$env:PYTHONIOENCODING='utf-8'
+.\.venv-wren\python.exe -m data_subagent_context_builder.cli validate `
+  --project-dir data\tmp\context_builder_bird_real\wren_project `
+  --wren-home data\tmp\context_builder_bird_real\wren_home `
+  --smoke-sql "select count(*) as transaction_count from transactions_1k"
+```
+
+Result:
+
+```text
+ok: true
+context_validate: Valid - 5 models, 0 views, 4 relationships.
+context_build: Built target/mdl.json
+dry_run: OK
+```
+
+Documentation added on 2026-07-09:
+
+```text
+docs/wren_context_builder_methods.html
+```
+
+This page explains the different WrenAI context/MDL construction paths:
+
+- dbt native import
+- existing MDL / OSI input
+- hand-written or ordinary agent-generated Wren YAML
+- `generate-mdl` skill workflow
+- `dlt-connector` skill/script path
+
+It clarifies that generic database onboarding is currently agent/script schema
+introspection plus Wren validate/build, not a single Wren core command that
+automatically imports arbitrary databases into a high-quality business semantic
+layer.
 
 ## 4. Verified Commands
 
@@ -621,6 +1660,12 @@ $env:PYTHONIOENCODING='utf-8'
 
 `WrenCliAdapter` already sets this for subprocess calls.
 
+Context Builder note from 2026-07-09: `wren context validate` reached warning
+printing on `data/wren/jaffle_wren_project`, then failed with
+`UnicodeEncodeError` when `PYTHONIOENCODING` was not set. With UTF-8 enabled it
+completed with 3 warnings and 0 errors. Any builder subprocess wrapper should
+set this env var.
+
 ### Wren Memory Fetch / Recall On Windows
 
 `wren memory fetch` and `wren memory recall` can hang during first-time
@@ -734,6 +1779,24 @@ Checked on 2026-07-09:
 Both import commands currently list `dbt` as the external import source. Wren
 can use DuckDB profiles, but it does not automatically introspect arbitrary
 SQLite databases into a Wren project through `context import`.
+
+Re-verified during the Wren Context Builder feasibility pass with WrenAI
+`0.12.0`. Additional relevant commands:
+
+```powershell
+.\.venv-wren\Scripts\wren.exe context init --help
+.\.venv-wren\Scripts\wren.exe context validate --help
+.\.venv-wren\Scripts\wren.exe context build --help
+.\.venv-wren\Scripts\wren.exe skills get generate-mdl
+.\.venv-wren\Scripts\wren.exe docs connection-info --format json
+```
+
+The clean interpretation is:
+
+- dbt import is Wren-native.
+- OSI/MDL migration/build is Wren-native.
+- arbitrary DB onboarding is Wren-assisted agent/script schema discovery, not
+  one-command native DB import.
 
 Workaround:
 
@@ -859,23 +1922,27 @@ data/wren/home/
 data/wren/jaffle_shop_duckdb/
 data/wren/jaffle_wren_project/.wren/
 data/traces/*.jsonl
+data/tmp/
 ```
 
-### Local Git Metadata Is Incomplete
+`data/tmp/` is ignored and can be used for local Context Builder smoke fixtures,
+generated Wren projects, and onboarding reports that should not be committed.
 
-Observed on 2026-07-09:
+### Local Git Metadata
+
+Earlier on 2026-07-09, `git status --short` failed because local git metadata
+appeared incomplete. Rechecked during the Wren Context Builder feasibility pass:
 
 ```text
 git status --short
-fatal: not a git repository (or any of the parent directories): .git
+ M docs/data_subagent_progress_and_pitfalls.md
+ M docs/wren_context_builder_plan.md
+?? docs/wren_context_builder_feasibility.md
 ```
 
-There is a `.git/` directory, but `.git/HEAD` is missing. Treat `git diff`,
-`git status`, and `git diff --check` as unavailable in this workspace until the
-repository metadata is repaired or reinitialized. Use direct file inspection for
-local verification.
-
-These are local runtime or generated artifacts.
+Git status is currently available again in this workspace. If it fails in a
+future session, treat that as local environment drift rather than a project
+behavior issue.
 
 ## 8. Current Limitations
 
@@ -902,20 +1969,33 @@ These are local runtime or generated artifacts.
 
 ## 9. Recommended Next Steps
 
-1. Add a reproducible setup script for Wren + jaffle_shop.
-2. Add skippable integration tests for real Wren CLI and DeepSeek.
-3. Triage the BIRD smoke5 failures and `needs_triage` cases before changing
-   prompts or Wren context.
-4. Add BIRD-derived Wren knowledge/rules/examples for repeated business
-   patterns such as `Date` year/month semantics and `Consumption` vs
-   transaction `Price`.
-5. Run a clean BIRD 30-case subset after the smoke5 triage fixes.
-6. Improve SQL alias quality, for example `order_count` instead of
-   `count_star()`.
-7. Add trace inspection CLI utilities, such as latest traces and failure summary.
-8. Upgrade clarity checking to combine local rules, DeepSeek clarification
-   classification, and Wren field/metric matching.
-9. Design the later Codex SDK improvement runtime around traces and evals.
+Current priority is to stabilize and validate the two existing workstreams, not
+to merge them.
+
+Context Builder:
+
+1. Preserve the successful BIRD onboarding artifacts and use them as the first
+   reference for the bounded Codex + Wren workflow.
+2. Manually review generated model descriptions, relationships, rules, and
+   examples before treating a generated Wren project as business-ready.
+3. Keep the Wren `generate-mdl` skill path as the default; retain mechanical
+   schema generation only as a fallback/debug mode.
+4. Add Postgres/MySQL inspection only after the SQLite/DuckDB onboarding
+   contract is stable. Generic database onboarding is not implemented yet.
+5. Keep dbt onboarding Wren-native. Do not claim an implemented `import-dbt`
+   command until it exists and has a real validation run.
+
+Data Subagent:
+
+1. Keep CLI as the MVP entry point. FastAPI remains deferred until a frontend
+   or external service needs to call the runtime.
+2. Triage BIRD `needs_triage` cases separately before changing prompts or Wren
+   context; a gold mismatch is not automatically a runtime bug.
+3. Upgrade clarity checking later as a separate business-agent enhancement.
+4. Add trace inspection utilities and skippable real Wren/DeepSeek integration
+   tests when operational debugging becomes the next priority.
+5. Design later Codex improvement work around traces and evals, but keep it out
+   of the online ask path.
 
 ## 11. Eval Dataset Research Update
 

@@ -1,0 +1,65 @@
+relationships:
+- name: nation_to_region
+  models:
+  - nation
+  - region
+  join_type: MANY_TO_ONE
+  condition: nation.n_regionkey = region.r_regionkey
+  properties:
+    description: Each inspected nation row matched one region row; snapshot orphan count was zero.
+- name: supplier_to_nation
+  models:
+  - supplier
+  - nation
+  join_type: MANY_TO_ONE
+  condition: supplier.s_nationkey = nation.n_nationkey
+  properties:
+    description: Each inspected supplier row matched one nation row; snapshot orphan count was zero.
+- name: customer_to_nation
+  models:
+  - customer
+  - nation
+  join_type: MANY_TO_ONE
+  condition: customer.c_nationkey = nation.n_nationkey
+  properties:
+    description: Each inspected customer row matched one nation row; snapshot orphan count was zero.
+- name: orders_to_customer
+  models:
+  - orders
+  - customer
+  join_type: MANY_TO_ONE
+  condition: orders.o_custkey = customer.c_custkey
+  properties:
+    description: Each inspected order row matched one customer row; snapshot orphan count was zero.
+- name: partsupp_to_part
+  models:
+  - partsupp
+  - part
+  join_type: MANY_TO_ONE
+  condition: partsupp.ps_partkey = part.p_partkey
+  properties:
+    description: Each inspected part-supplier row matched one part row; snapshot orphan count was zero.
+- name: partsupp_to_supplier
+  models:
+  - partsupp
+  - supplier
+  join_type: MANY_TO_ONE
+  condition: partsupp.ps_suppkey = supplier.s_suppkey
+  properties:
+    description: Each inspected part-supplier row matched one supplier row; snapshot orphan count was zero.
+- name: lineitem_to_orders
+  models:
+  - lineitem
+  - orders
+  join_type: MANY_TO_ONE
+  condition: lineitem.l_orderkey = orders.o_orderkey
+  properties:
+    description: Each inspected line item matched one order row; snapshot orphan count was zero.
+- name: lineitem_to_partsupp
+  models:
+  - lineitem
+  - partsupp
+  join_type: MANY_TO_ONE
+  condition: lineitem.l_partkey = partsupp.ps_partkey AND lineitem.l_suppkey = partsupp.ps_suppkey
+  properties:
+    description: Each inspected line item matched one composite part-supplier row; snapshot orphan count was zero.

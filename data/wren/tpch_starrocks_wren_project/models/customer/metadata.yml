@@ -1,0 +1,59 @@
+name: customer
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: customer
+columns:
+- name: c_custkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H customer identifier; non-null and unique across the inspected snapshot.
+- name: c_name
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H customer name.
+- name: c_address
+  type: VARCHAR(40)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H customer address text.
+- name: c_nationkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Nation identifier validated against nation.n_nationkey with zero snapshot orphans.
+- name: c_phone
+  type: VARCHAR(15)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H customer phone text.
+- name: c_acctbal
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H customer account-balance value; unit and accounting interpretation require expert confirmation.
+- name: c_mktsegment
+  type: VARCHAR(10)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H market-segment code. Five values were observed, but no company-specific policy is inferred.
+- name: c_comment
+  type: VARCHAR(117)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H customer comment text.
+cached: false
+properties:
+  description: TPC-H customers with location, contact, account-balance, segment, and comment attributes.
+primary_key: c_custkey

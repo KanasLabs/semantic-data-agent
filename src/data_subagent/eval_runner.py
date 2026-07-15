@@ -26,6 +26,8 @@ class EvalCase:
     expected_first_row_contains: dict[str, Any] = field(default_factory=dict)
     expected_any_row_contains: list[dict[str, Any]] = field(default_factory=list)
     expected_any_values: list[Any] = field(default_factory=list)
+    expected_answer_contains: list[str] = field(default_factory=list)
+    expected_answer_not_contains: list[str] = field(default_factory=list)
     constraints: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -267,6 +269,8 @@ def _evaluate_answer(
     rows = answer.get("rows") if isinstance(answer.get("rows"), list) else []
     sql = str(answer.get("sql") or "")
     normalized_sql = sql.lower()
+    answer_text = str(answer.get("answer") or "")
+    normalized_answer = answer_text.lower()
     failure_reasons: list[str] = []
 
     status_match = answer.get("status") == case.expected_status
@@ -316,6 +320,29 @@ def _evaluate_answer(
             any_value_match = False
             failure_reasons.append(f"value not found in result rows: {expected_value!r}")
 
+    answer_contains_match = all(
+        item.lower() in normalized_answer for item in case.expected_answer_contains
+    )
+    if not answer_contains_match:
+        missing = [
+            item
+            for item in case.expected_answer_contains
+            if item.lower() not in normalized_answer
+        ]
+        failure_reasons.append(f"answer missing expected fragment(s): {missing}")
+
+    answer_not_contains_match = all(
+        item.lower() not in normalized_answer
+        for item in case.expected_answer_not_contains
+    )
+    if not answer_not_contains_match:
+        present = [
+            item
+            for item in case.expected_answer_not_contains
+            if item.lower() in normalized_answer
+        ]
+        failure_reasons.append(f"answer contains forbidden fragment(s): {present}")
+
     repair_count = None
     dry_run_ok = None
     if trace:
@@ -332,6 +359,8 @@ def _evaluate_answer(
         "first_row_match": first_row_match,
         "any_row_match": any_row_match,
         "any_value_match": any_value_match,
+        "answer_contains_match": answer_contains_match,
+        "answer_not_contains_match": answer_not_contains_match,
         "dry_run_ok": dry_run_ok,
         "repair_count": repair_count,
     }

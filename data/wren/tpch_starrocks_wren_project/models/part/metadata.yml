@@ -1,0 +1,65 @@
+name: part
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: part
+columns:
+- name: p_partkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H part identifier; non-null and unique across the inspected snapshot.
+- name: p_name
+  type: VARCHAR(55)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H part name text.
+- name: p_mfgr
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H manufacturer code or label.
+- name: p_brand
+  type: VARCHAR(10)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H brand code or label.
+- name: p_type
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H part type text.
+- name: p_size
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H part size value; unit requires expert confirmation.
+- name: p_container
+  type: VARCHAR(10)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H container code or label.
+- name: p_retailprice
+  type: DECIMAL(15, 2)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H retail-price value; currency and pricing policy require expert confirmation.
+- name: p_comment
+  type: VARCHAR(23)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H part comment text.
+cached: false
+properties:
+  description: TPC-H parts with descriptive, classification, size, container, and retail-price attributes.
+primary_key: p_partkey

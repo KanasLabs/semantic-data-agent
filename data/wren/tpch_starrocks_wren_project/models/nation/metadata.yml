@@ -1,0 +1,35 @@
+name: nation
+table_reference:
+  catalog: default_catalog
+  schema: tpch_sf001
+  table: nation
+columns:
+- name: n_nationkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: TPC-H nation identifier; non-null and unique across the inspected snapshot.
+- name: n_name
+  type: VARCHAR(25)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: TPC-H nation name.
+- name: n_regionkey
+  type: INT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: Region identifier validated against region.r_regionkey with zero snapshot orphans.
+- name: n_comment
+  type: VARCHAR(152)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: Optional TPC-H comment text for the nation.
+cached: false
+properties:
+  description: TPC-H nations, each associated with a region in the inspected snapshot.
+primary_key: n_nationkey
