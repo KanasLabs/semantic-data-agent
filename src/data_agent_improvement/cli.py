@@ -9,6 +9,13 @@ from typing import Any
 
 from .feedback import record_feedback
 from .ingestion import ingest_eval_run, ingest_traces
+from .docker_worker import (
+    DockerCodexRunner,
+    DockerWorkerConfig,
+    issue_docker_isolation_receipt,
+    resolve_docker_image_id,
+    write_isolation_receipt,
+)
 from .isolation import (
     ISOLATION_ENVIRONMENT_ID_ENV,
     ISOLATION_HMAC_ENV,
@@ -204,8 +211,28 @@ def main() -> None:
     execute_job_parser.add_argument("--eval-model")
     execute_job_parser.add_argument("--eval-query-limit", type=int)
     execute_job_parser.add_argument("--eval-timeout-seconds", type=int, default=1800)
+    execute_job_parser.add_argument(
+        "--executor",
+        choices=["docker", "local"],
+        default="docker",
+    )
+    execute_job_parser.add_argument("--docker-image")
+    execute_job_parser.add_argument("--docker-network")
+    execute_job_parser.add_argument("--docker-https-proxy")
     execute_job_parser.add_argument("--execute", action="store_true")
     execute_job_parser.add_argument("--isolation-receipt", required=True)
+
+    prepare_docker_parser = subparsers.add_parser(
+        "prepare-docker-isolation",
+        parents=[common],
+    )
+    prepare_docker_parser.add_argument("--job", required=True)
+    prepare_docker_parser.add_argument("--docker-image", required=True)
+    prepare_docker_parser.add_argument("--docker-network", required=True)
+    prepare_docker_parser.add_argument("--docker-https-proxy", required=True)
+    prepare_docker_parser.add_argument("--docker-bin", default="docker")
+    prepare_docker_parser.add_argument("--issuer", required=True)
+    prepare_docker_parser.add_argument("--output", required=True)
 
     show_job_parser = subparsers.add_parser("show-job", parents=[common])
     show_job_parser.add_argument("--job", required=True)
@@ -454,6 +481,42 @@ def main() -> None:
         _print_json(job.to_dict(), pretty=True)
         return
 
+    if args.command == "prepare-docker-isolation":
+        job = store.get_job(args.job)
+        image_id = resolve_docker_image_id(
+            image=args.docker_image,
+            docker_bin=args.docker_bin,
+        )
+        config = DockerWorkerConfig(
+            image_id=image_id,
+            network=args.docker_network,
+            https_proxy=args.docker_https_proxy,
+            docker_bin=args.docker_bin,
+            timeout_seconds=job.timeout_seconds,
+        )
+        receipt = issue_docker_isolation_receipt(
+            job=job,
+            config=config,
+            project_root=project_root,
+            environment_id=_required_environment(ISOLATION_ENVIRONMENT_ID_ENV),
+            issuer=args.issuer,
+            hmac_key=_required_environment(ISOLATION_HMAC_ENV),
+        )
+        output_path = _project_scoped_path(project_root, Path(args.output))
+        write_isolation_receipt(receipt=receipt, path=output_path)
+        _print_json(
+            {
+                "job_id": job.job_id,
+                "receipt_id": receipt.receipt_id,
+                "backend": receipt.backend,
+                "output": str(output_path),
+                "expires_at": receipt.expires_at,
+                "probes": receipt.probes,
+            },
+            pretty=True,
+        )
+        return
+
     if args.command == "execute-semantic-job":
         if not args.execute:
             raise ValueError("execute-semantic-job requires the explicit --execute flag.")
@@ -463,6 +526,55 @@ def main() -> None:
             path=Path(args.isolation_receipt),
             project_root=project_root,
         )
+        job = store.get_job(args.job)
+        docker_runner_factory = None
+        if args.executor == "docker":
+            if (
+                not args.docker_image
+                or not args.docker_network
+                or not args.docker_https_proxy
+            ):
+                raise ValueError(
+                    "Docker execution requires --docker-image, --docker-network, "
+                    "and --docker-https-proxy."
+                )
+            image_id = resolve_docker_image_id(
+                image=args.docker_image,
+                docker_bin=args.docker_bin,
+            )
+            docker_config = DockerWorkerConfig(
+                image_id=image_id,
+                network=args.docker_network,
+                https_proxy=args.docker_https_proxy,
+                docker_bin=args.docker_bin,
+                codex_model=args.codex_model,
+                timeout_seconds=job.timeout_seconds,
+            )
+            if isolation_receipt.backend != docker_config.backend:
+                raise ValueError(
+                    "Isolation receipt backend does not match the selected Docker image."
+                )
+            static_replacements = {
+                project_root: "/not-mounted/project",
+                Path(job.read_only_roots[1]): "/not-mounted/base",
+                Path(args.context_registry_root): "/not-mounted/registry",
+                Path(args.wren_home): "/not-mounted/wren-home",
+                Path(args.wren_bin): "/not-mounted/wren-bin",
+            }
+
+            def docker_runner_factory(candidate_root, evidence_root, output_schema_path):
+                return DockerCodexRunner(
+                    config=docker_config,
+                    candidate_root=candidate_root,
+                    evidence_root=evidence_root,
+                    output_schema_path=output_schema_path,
+                    path_replacements=static_replacements,
+                )
+        elif isolation_receipt.backend.startswith("docker:"):
+            raise ValueError(
+                "A Docker isolation receipt cannot authorize the local executor."
+            )
+
         executor = ContextBuilderSemanticExecutor(
             project_root=project_root,
             context_registry_root=Path(args.context_registry_root),
@@ -475,6 +587,7 @@ def main() -> None:
             eval_model=args.eval_model,
             eval_query_limit=args.eval_query_limit,
             eval_timeout_seconds=args.eval_timeout_seconds,
+            codex_runner_factory=docker_runner_factory,
         )
         result = execute_semantic_job(
             store=store,
@@ -561,6 +674,15 @@ def _required_environment(name: str) -> str:
     if not value:
         raise ValueError(f"Required isolation environment variable is missing: {name}")
     return value
+
+
+def _project_scoped_path(project_root: Path, path: Path) -> Path:
+    resolved = (project_root / path).resolve() if not path.is_absolute() else path.resolve()
+    try:
+        resolved.relative_to(project_root.resolve())
+    except ValueError as exc:
+        raise ValueError("Output path must remain inside project-root.") from exc
+    return resolved
 
 
 def _parse_expected_value(value: str | None) -> str | int | float | bool | None:

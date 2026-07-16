@@ -510,8 +510,62 @@ sign the receipt, and inject its environment ID. No real Codex execution was
 attempted. Verification after this change: SI2 `10/10`, full suite `133/133`, and
 `git diff --check` passed.
 
-Real Codex execution still requires a configured Wren/eval environment, the
-`--execute` gate, and a valid external isolation receipt. SI2 still cannot
+### SI2 Docker / CI isolated worker
+
+Implemented the preferred Docker/CI workaround for the Windows strict-read
+backend limitation. Only the Codex editing process enters the container; the
+outer controller still owns candidate creation, frozen evidence verification,
+Wren validation, target/smoke/regression evals, and the `REVIEW_REQUIRED` gate.
+
+```text
+src/data_agent_improvement/docker_worker.py
+infra/si2_codex_worker/Dockerfile
+infra/si2_codex_worker/Dockerfile.proxy
+infra/si2_codex_worker/squid.conf
+infra/si2_codex_worker/docker-compose.yml
+docs/si2_docker_worker.md
+```
+
+The worker resolves a tag to Docker's immutable image ID and binds the receipt
+to that ID, the internal network, and the proxy endpoint hash. Runtime mounts
+only the copied candidate read/write, minimized evidence read-only, and the
+final-response schema read-only. It does not mount the repository, base
+snapshot, Registry controls, database, Wren home, or host credentials.
+
+The container uses a read-only root filesystem, UID 10001, dropped Linux
+capabilities, `no-new-privileges`, PID/memory/CPU limits, an ephemeral tmpfs,
+Codex `workspace-write`, `sandbox_workspace_write.network_access=false`,
+`shell_environment_policy.inherit=none`, ignored user config/rules, and no
+approval path. The HMAC/environment secrets never enter the container.
+
+Provider access uses two networks: the Codex worker joins only the internal
+`data-agent-si2-internal` network; the Squid proxy joins that network and a
+provider-egress network. Its ACL permits CONNECT only to `api.openai.com`. The
+no-model probe must prove OpenAI reachability through the proxy, rejection of
+`example.com`, direct-internet denial, denial of a reachable network canary by
+`codex sandbox`, candidate/evidence mount modes, and dummy API-key exclusion
+before signing a receipt.
+
+Offline verification completed:
+
+```text
+Docker/SI2 targeted tests: 17 passed
+full unit suite: 140 passed
+docker compose config: passed
+CLI prepare-docker-isolation help: passed
+git diff --check: passed
+```
+
+Docker Desktop is available with Linux containers and cgroup v2. The first
+worker build failed before any layer executed because Docker could not reach
+`registry-1.docker.io:443`. Retrying outside the workspace sandbox produced the
+same timeout. Therefore the image, live probes, receipt, and real Codex execution
+remain pending on restored registry access or a network-enabled CI runner. No
+OpenAI request was made.
+
+Real Codex execution still requires built worker/proxy images, a configured
+Wren/eval environment, the `--execute` gate, and a valid Docker isolation
+receipt. SI2 still cannot
 approve or publish. SI3 engineering worktrees and SI4 release monitoring remain
 unimplemented.
 

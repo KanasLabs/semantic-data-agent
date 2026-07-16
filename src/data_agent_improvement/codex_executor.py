@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from data_subagent_context_builder.codex_runtime import CodexCliRunner
 from data_subagent_context_builder.revision_engine import revise_candidate
@@ -29,6 +29,7 @@ class ContextBuilderSemanticExecutor:
         eval_model: str | None = None,
         eval_query_limit: int | None = None,
         eval_timeout_seconds: int = 1800,
+        codex_runner_factory: Callable[[Path, Path, Path], Any] | None = None,
         wren_runner: WrenRunner | None = None,
         eval_runner: RevisionEvalRunner | None = None,
     ) -> None:
@@ -43,6 +44,7 @@ class ContextBuilderSemanticExecutor:
         self.eval_model = eval_model
         self.eval_query_limit = eval_query_limit
         self.eval_timeout_seconds = eval_timeout_seconds
+        self.codex_runner_factory = codex_runner_factory
         self.wren_runner = wren_runner
         self.eval_runner = eval_runner
 
@@ -71,6 +73,12 @@ class ContextBuilderSemanticExecutor:
         )
 
         def runner_factory(candidate_project_dir: Path) -> CodexCliRunner:
+            if self.codex_runner_factory is not None:
+                return self.codex_runner_factory(
+                    candidate_project_dir,
+                    target_eval_path.parent,
+                    output_schema_path,
+                )
             return CodexCliRunner(
                 codex_bin=self.codex_bin,
                 project_root=candidate_project_dir,

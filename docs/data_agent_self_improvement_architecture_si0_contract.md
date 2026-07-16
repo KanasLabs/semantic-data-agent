@@ -1044,12 +1044,21 @@ Prepare and explicitly execute an SI2 semantic candidate job:
   --eval-target evaltarget_... --base-candidate-id candidate_... `
   --base-snapshot-path data\wren\base_project
 
+.\.venv-wren\python.exe -m data_agent_improvement.cli prepare-docker-isolation `
+  --job job_... --docker-image data-agent-si2-codex-worker:0.144.1 `
+  --docker-network data-agent-si2-internal `
+  --docker-https-proxy http://data-agent-si2-egress-proxy:3128 `
+  --issuer ci-runner --output data\tmp\si2_worker\isolation_receipt.json
+
 .\.venv-wren\python.exe -m data_agent_improvement.cli verify-isolation-receipt `
   --job job_... --receipt data\tmp\si2_worker\isolation_receipt.json
 
 .\.venv-wren\python.exe -m data_agent_improvement.cli execute-semantic-job `
   --job job_... --context-registry-root data\context_registry `
   --wren-home data\wren\home --wren-bin .venv-wren\Scripts\wren.exe `
+  --executor docker --docker-image data-agent-si2-codex-worker:0.144.1 `
+  --docker-network data-agent-si2-internal `
+  --docker-https-proxy http://data-agent-si2-egress-proxy:3128 `
   --isolation-receipt data\tmp\si2_worker\isolation_receipt.json --execute
 ```
 
@@ -1061,20 +1070,24 @@ frozen EvalTarget, evidence manifest, schema fingerprint, logical writable
 root, and active external environment ID.
 
 The receipt is not a checkbox. Its signed probe map must confirm process-tree
-isolation, child-policy inheritance, candidate-only writes, read-only evidence
-and base snapshot mounts, denied reads/writes outside the workspace, denied
-tool network, and minimized credentials. The Codex provider control plane may
-remain reachable, but model-generated tools receive no network access. The
+isolation, child-policy inheritance, candidate-only writes, read-only evidence,
+an unmounted base snapshot/repository/Registry, denied reads/writes outside the
+workspace, denied tool network, and minimized credentials. The Docker worker
+joins an internal network with no direct internet route. The Codex provider
+control plane remains reachable only through an ACL proxy that permits
+`api.openai.com` and rejects other destinations; model-generated tools receive
+neither network access nor inherited proxy/authentication variables. The
 controller verifies and stores the immutable receipt before changing the Job
-from `PREPARED` to `RUNNING`; the HMAC key and environment ID are excluded from
-the sanitized Codex child environment.
+from `PREPARED` to `RUNNING`.
 
 The current Windows host cannot itself issue this receipt. Local
 `codex-cli 0.144.1` exposes `--sandbox-state-readable-root` and
 `--sandbox-state-disable-network`, but a strict read-allowlist probe reports
 that restricted read-only access requires the elevated Windows sandbox backend.
-Until a CI/container/VM or elevated backend performs the probes and signs the
-receipt, real SI2 Codex execution remains blocked by design.
+The Docker/CI worker is now implemented as the preferred workaround. Its live
+probe/build still requires a runner that can pull the fixed worker/proxy images
+and reach the OpenAI API through the controlled proxy. Until those probes sign
+the receipt, real SI2 Codex execution remains blocked by design.
 
 ## 18. Report Contract
 
@@ -1321,6 +1334,11 @@ SI2 implementation details:
   signed isolation-receipt enforcement, and result mapping.
 - `isolation.py` owns Job binding, required probe policy, HMAC verification,
   environment matching, and receipt expiry.
+- `docker_worker.py` owns immutable image resolution, hardened bind mounts,
+  internal-network/proxy checks, filesystem/network/credential probes, prompt
+  path translation, and Docker Codex execution.
+- `infra/si2_codex_worker/` provides the fixed Codex worker image and an
+  OpenAI-only Squid egress proxy topology.
 - `codex_executor.py` adapts the bounded task to `revise_candidate`.
 - the Codex process uses an ephemeral session, ignores user config, requests no
   approvals, omits web search, uses a JSON output schema, and receives a
