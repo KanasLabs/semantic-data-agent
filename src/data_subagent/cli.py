@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from .trace_store import JsonlTraceStore
 
 
 def main() -> None:
+    _configure_utf8_output()
     parser = argparse.ArgumentParser(prog="data-subagent")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -151,6 +153,12 @@ def _query_limit_for_command(args: argparse.Namespace, config: SubagentConfig) -
     if args.command == "ask":
         return args.limit or config.query_limit
     return getattr(args, "query_limit", None) or config.query_limit
+
+
+def _configure_utf8_output() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8", errors="replace")
 
 
 if __name__ == "__main__":

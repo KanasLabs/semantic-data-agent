@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,9 +86,11 @@ class WrenCliAdapter(WrenAdapter):
         )
 
     def execute(self, sql: str, limit: int = 100) -> ExecuteResult:
-        result = self._run(
-            ["query", "--sql", sql, "--output", "json", "--quiet", "--limit", str(limit)]
-        )
+        bounded_sql, cli_limit = _bounded_query(sql, limit)
+        args = ["query", "--sql", bounded_sql, "--output", "json", "--quiet"]
+        if cli_limit is not None:
+            args.extend(["--limit", str(cli_limit)])
+        result = self._run(args)
         if result.returncode != 0:
             return ExecuteResult(ok=False, error=(result.stderr or result.stdout).strip(), raw=result.to_dict())
         try:
@@ -136,6 +139,25 @@ def _parse_json_rows(stdout: str) -> list[dict[str, object]]:
         if isinstance(loaded, dict):
             rows.append(loaded)
     return rows
+
+
+_TRAILING_LIMIT_PATTERN = re.compile(
+    r"\bLIMIT\s+(?P<count>\d+)(?P<offset>\s+OFFSET\s+\d+)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _bounded_query(sql: str, limit: int) -> tuple[str, int | None]:
+    bounded_limit = max(1, int(limit))
+    normalized_sql = sql.strip().rstrip(";").rstrip()
+    match = _TRAILING_LIMIT_PATTERN.search(normalized_sql)
+    if not match:
+        return normalized_sql, bounded_limit
+    requested_limit = int(match.group("count"))
+    if requested_limit > bounded_limit:
+        start, end = match.span("count")
+        normalized_sql = f"{normalized_sql[:start]}{bounded_limit}{normalized_sql[end:]}"
+    return normalized_sql, None
 
 
 def _parse_front_matter(path: Path) -> dict[str, str]:

@@ -12,6 +12,22 @@ from data_subagent.trace_store import JsonlTraceStore
 
 
 class EvalRunnerTest(unittest.TestCase):
+    def test_rows_equivalent_tolerates_float_execution_noise(self):
+        self.assertTrue(
+            _rows_equivalent(
+                [{"difference": 402524570.1700006}],
+                [{"consumption_difference": 402524570.17000055}],
+            )
+        )
+
+    def test_rows_equivalent_normalizes_decimal_strings(self):
+        self.assertTrue(
+            _rows_equivalent(
+                [{"percentage": "99.5292163"}],
+                [{"percentage": 99.52921628357795}],
+            )
+        )
+
     def test_load_eval_cases(self):
         with tempfile.TemporaryDirectory() as tmp:
             suite = Path(tmp) / "suite.jsonl"

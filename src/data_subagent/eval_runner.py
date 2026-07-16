@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from decimal import Decimal, InvalidOperation
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -397,8 +398,19 @@ def _row_contains(row: dict[str, Any], expected: dict[str, Any]) -> bool:
 def _normalize_value(value: Any) -> Any:
     if isinstance(value, float) and value.is_integer():
         return int(value)
+    if isinstance(value, float):
+        return float(f"{value:.8g}")
     if isinstance(value, str):
-        return value.strip()
+        stripped = value.strip()
+        try:
+            numeric = Decimal(stripped)
+        except InvalidOperation:
+            return stripped
+        if not numeric.is_finite():
+            return stripped
+        if numeric == numeric.to_integral_value():
+            return int(numeric)
+        return float(f"{float(numeric):.8g}")
     return value
 
 
