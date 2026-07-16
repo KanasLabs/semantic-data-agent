@@ -27,6 +27,7 @@ class EvalCase:
     expected_first_row_contains: dict[str, Any] = field(default_factory=dict)
     expected_any_row_contains: list[dict[str, Any]] = field(default_factory=list)
     expected_any_values: list[Any] = field(default_factory=list)
+    expected_numeric_tolerance: float | None = None
     expected_answer_contains: list[str] = field(default_factory=list)
     expected_answer_not_contains: list[str] = field(default_factory=list)
     constraints: dict[str, Any] = field(default_factory=dict)
@@ -138,7 +139,13 @@ def run_eval_suite(
     records: list[EvalRunRecord] = []
     with run_path.open("w", encoding="utf-8") as run_file:
         for case in cases:
-            record = _run_one_case(agent, case, trace_path)
+            record = _run_one_case(
+                agent,
+                case,
+                trace_path,
+                run_id=run_id,
+                suite_name=resolved_suite_name,
+            )
             records.append(record)
             run_file.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
             run_file.flush()
@@ -163,12 +170,24 @@ def run_eval_suite(
     return summary
 
 
-def _run_one_case(agent: DataSubagent, case: EvalCase, trace_path: Path) -> EvalRunRecord:
+def _run_one_case(
+    agent: DataSubagent,
+    case: EvalCase,
+    trace_path: Path,
+    *,
+    run_id: str,
+    suite_name: str,
+) -> EvalRunRecord:
     started_at = _utc_now_iso()
     started_perf = time.perf_counter()
     answer = agent.ask_data_question(
         question=_question_with_evidence(case),
         constraints=case.constraints or None,
+        eval_identity={
+            "run_id": run_id,
+            "eval_id": case.eval_id,
+            "suite_name": suite_name,
+        },
     )
     finished_at = _utc_now_iso()
     duration_ms = _elapsed_ms(started_perf)
@@ -317,7 +336,11 @@ def _evaluate_answer(
     any_value_match = True
     flattened_values = [_normalize_value(value) for row in rows if isinstance(row, dict) for value in row.values()]
     for expected_value in case.expected_any_values:
-        if _normalize_value(expected_value) not in flattened_values:
+        if not _contains_expected_value(
+            flattened_values,
+            expected_value,
+            case.expected_numeric_tolerance,
+        ):
             any_value_match = False
             failure_reasons.append(f"value not found in result rows: {expected_value!r}")
 
@@ -412,6 +435,26 @@ def _normalize_value(value: Any) -> Any:
             return int(numeric)
         return float(f"{float(numeric):.8g}")
     return value
+
+
+def _contains_expected_value(
+    actual_values: list[Any],
+    expected_value: Any,
+    numeric_tolerance: float | None,
+) -> bool:
+    normalized_expected = _normalize_value(expected_value)
+    if normalized_expected in actual_values:
+        return True
+    if numeric_tolerance is None or isinstance(normalized_expected, bool):
+        return False
+    if not isinstance(normalized_expected, (int, float)):
+        return False
+    return any(
+        not isinstance(actual, bool)
+        and isinstance(actual, (int, float))
+        and abs(float(actual) - float(normalized_expected)) <= numeric_tolerance
+        for actual in actual_values
+    )
 
 
 def _stable_sort_key(value: Any) -> str:

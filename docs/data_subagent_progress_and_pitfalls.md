@@ -274,6 +274,166 @@ OK
 No runtime code, local Context Registry, Wren state, trace, or eval artifact was
 changed during this design-only milestone.
 
+### Controlled self-improvement SI0 implementation
+
+Implemented the SI0 evidence foundation on 2026-07-16 in the separate
+`data_agent_improvement` package:
+
+```text
+src/data_agent_improvement/models.py
+src/data_agent_improvement/store.py
+src/data_agent_improvement/evidence.py
+src/data_agent_improvement/feedback.py
+src/data_agent_improvement/ingestion.py
+src/data_agent_improvement/report.py
+src/data_agent_improvement/cli.py
+```
+
+The implementation provides:
+
+- typed and validated `FeedbackRecord`, optional correction pairs, scoped actor
+  authority claims, and `FailureCase` records
+- immutable atomic feedback writes and deterministic, idempotent case creation
+- legacy/version-2 trace ingestion and failed/`needs_triage` eval ingestion
+- negative/correction feedback case creation while positive ordinary ratings
+  remain feedback-only
+- observed answer/SQL hash verification without copying result rows
+- project-root evidence path enforcement and credential-pattern rejection or
+  redaction
+- read-only list/show operations and bounded Markdown inbox reports
+- a CLI that records feedback, ingests traces/evals, lists/shows cases, and
+  writes reports under the Git-ignored `data/improvement_registry/`
+
+The real Data Subagent trace path now emits schema version 2 with runtime,
+Context, data, LLM, eval, and timing identity. Wren fingerprints use an explicit
+semantic-file allowlist; schema and full result evidence are represented by
+SHA-256 hashes. Eval runs attach `run_id`, `eval_id`, and `suite_name` to their
+traces. Existing trace JSONL is not rewritten and missing version metadata is
+normalized as legacy version 1 during ingestion.
+
+Verification:
+
+```text
+SI0 targeted tests: 24 passed
+full unit suite at SI0 milestone: 114 passed
+CLI help/list smoke: passed
+git diff --check: passed
+forbidden SI0 imports: no Codex / DeepSeek / Wren / subprocess / urllib
+```
+
+No real trace file, eval run, Wren state, Context Registry, or Improvement
+Registry record was created during verification; tests use temporary
+directories. SI1 was implemented in the following milestone.
+
+### Controlled self-improvement SI1 implementation
+
+Implemented deterministic SI1 triage and frozen acceptance contracts on
+2026-07-16. `src/data_agent_improvement/triage.py` and the extended models,
+store, and CLI now provide:
+
+- immutable `AuthorityDecision` records, including explicit revocation
+- a trusted-local-admin acknowledgement gate for authority CLI actions
+- deterministic group suggestions by Context, failure phase, and signal type
+- authorized semantic singleton findings and clustered lower-confidence cases
+- separation of `EVAL_NEEDS_TRIAGE` findings from product semantic findings
+- explicit Finding dismissal with reviewer, timestamp, and reason
+- versioned EvalTargets with result and semantic constraints
+- `DRAFT -> NEEDS_BUSINESS_REVIEW -> APPROVED -> FROZEN` lifecycle enforcement
+- authority re-checks at approval and freeze
+- content hashes that cannot be weakened or rewritten in place
+- `INVALID` and `SUPERSEDED` target terminal paths
+
+Business truth, authority confirmation, target approval, and freezing are
+separate recorded actions. The same MVP user may perform business confirmation
+and approval, but the records remain distinct. The local CLI does not
+authenticate `decided_by`; a deployed API must authenticate and authorize that
+administrator before calling the control service.
+
+Verification:
+
+```text
+SI0/SI1 targeted tests: 32 passed
+full unit suite: 122 passed
+SI1 CLI help and authority acknowledgement smoke: passed
+git diff --check: passed
+forbidden improvement imports: no Codex / DeepSeek / Wren / subprocess / urllib
+```
+
+At the SI1 milestone, no Codex task, candidate workspace, Wren revision,
+database access, approval, publication, merge, or deployment was triggered.
+The following milestone adds the bounded SI2 controller.
+
+### Controlled self-improvement SI2 controller implementation
+
+Implemented the SI2 bounded semantic-candidate controller on 2026-07-16. The
+implementation prepares and verifies jobs without executing by default:
+
+```text
+src/data_agent_improvement/si2.py
+src/data_agent_improvement/codex_executor.py
+```
+
+SI2 now provides:
+
+- `BoundedCodexTask` and `ImprovementJobResult` contracts
+- minimized evidence bundles containing findings, frozen targets, cases,
+  correction feedback, authority decisions, and a generated target eval
+- no copied raw trace payloads or result preview rows
+- per-file evidence hashes plus a frozen manifest hash
+- frozen target hash verification before and after candidate execution
+- separate `EVAL_TARGET_INVALID` and evidence/infrastructure `INCONCLUSIVE`
+  outcomes
+- an explicit external isolation gate before any executor call
+- a replaceable `SemanticCandidateExecutor` protocol
+- a Context Builder adapter that creates a new candidate through
+  `revise_candidate`, repeats the frozen target suite, runs smoke/regression,
+  and stops at `REVIEW_REQUIRED`
+
+The current real adapter uses the locally installed `codex exec` CLI rather
+than hard-coding an SDK dependency. The installed CLI help verified
+`workspace-write`, `--ephemeral`, `--ignore-user-config`, `--output-schema`,
+JSONL, and non-interactive execution. The OpenAI `openai-docs` manual helper was
+attempted inside and outside the sandbox, but the official manual endpoint
+returned HTTP 403; Docs MCP was unavailable. The executor therefore uses only
+locally verified flags and remains replaceable by a future official SDK
+adapter.
+
+Codex execution hardening:
+
+- candidate workspace is the only Codex writable root owned by the revision
+  workflow
+- evidence and base snapshot are referenced as read-only roots and re-hashed
+  after execution
+- Codex runs ephemerally, ignores user config, receives a JSON output schema,
+  omits `--search`, and uses `approval_policy=never`
+- the child environment is allowlisted and excludes DeepSeek keys and database
+  passwords
+- CLI execution requires both `--execute` and
+  `--external-isolation-confirmed`
+- the registered base candidate path must match the prepared SI2 base snapshot
+- target result tolerance is enforced by the EvalRunner; required semantic
+  filters use the existing SQL-fragment fallback in the generated target suite
+
+The external isolation acknowledgement is not merely informational. The host
+sandbox must prevent Codex from reading unrelated repository secrets and must
+enforce network policy; `workspace-write` and omission of `--search` do not by
+themselves prove filesystem read allowlisting or host-level network denial.
+
+Verification uses only fake executors; no real Codex task was launched:
+
+```text
+SI0/SI1 targeted tests: 32 passed
+SI2 targeted tests: 7 passed
+full unit suite: 130 passed
+Context Builder Codex/revision regressions: passed
+git diff --check: passed
+```
+
+A real SI2 acceptance still requires a frozen target, registered base Context
+candidate, configured Wren/eval environment, and explicit operator isolation
+confirmation. SI2 still cannot approve or publish. SI3 engineering worktrees
+and SI4 release monitoring remain unimplemented.
+
 ### Main Agent orchestration architecture note
 
 Added `docs/data_agent_main_orchestrator_architecture.md` to clarify the missing

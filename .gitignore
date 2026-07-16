@@ -13,6 +13,7 @@ data/**/*.duckdb.wal
 data/duckdb_extensions/
 data/evals/runs/
 data/evals/reports/
+data/improvement_registry/
 data/external/
 data/wren/home/
 data/wren/jaffle_shop_duckdb/

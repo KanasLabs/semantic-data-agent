@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .codex_runtime import CodexCliRunner
 from .revision_store import (
@@ -93,6 +93,7 @@ def revise_candidate(
     store: RevisionStore | None = None,
     wren_runner: WrenRunner | None = None,
     codex_runner: CodexCliRunner | None = None,
+    codex_runner_factory: Callable[[Path], CodexCliRunner] | None = None,
     eval_runner: RevisionEvalRunner | None = None,
 ) -> dict[str, Any]:
     project_root = project_root.resolve()
@@ -201,6 +202,7 @@ def revise_candidate(
         eval_timeout_seconds=eval_timeout_seconds,
         wren_runner=wren_runner,
         codex_runner=codex_runner,
+        codex_runner_factory=codex_runner_factory,
         eval_runner=eval_runner,
         clarification_answers=None,
         starrocks_access=starrocks_access,
@@ -334,6 +336,7 @@ def resume_revision(
         eval_timeout_seconds=eval_timeout_seconds,
         wren_runner=wren_runner,
         codex_runner=codex_runner,
+        codex_runner_factory=None,
         eval_runner=eval_runner,
         clarification_answers=answers,
         starrocks_access=starrocks_access,
@@ -537,6 +540,7 @@ def _execute_revision(
     eval_timeout_seconds: int,
     wren_runner: WrenRunner | None,
     codex_runner: CodexCliRunner | None,
+    codex_runner_factory: Callable[[Path], CodexCliRunner] | None,
     eval_runner: RevisionEvalRunner | None,
     clarification_answers: list[HumanAnswer] | None,
     starrocks_access: PreparedStarRocksRevisionAccess | None,
@@ -560,12 +564,16 @@ def _execute_revision(
         wren_home=wren_home,
         timeout_seconds=timeout_seconds,
     )
-    active_codex_runner = codex_runner or CodexCliRunner(
-        codex_bin=codex_bin,
-        project_root=candidate_project_dir,
-        model=codex_model,
-        timeout_seconds=codex_timeout_seconds,
-    )
+    active_codex_runner = codex_runner
+    if active_codex_runner is None and codex_runner_factory is not None:
+        active_codex_runner = codex_runner_factory(candidate_project_dir)
+    if active_codex_runner is None:
+        active_codex_runner = CodexCliRunner(
+            codex_bin=codex_bin,
+            project_root=candidate_project_dir,
+            model=codex_model,
+            timeout_seconds=codex_timeout_seconds,
+        )
     initial_result = {
         "ok": True,
         "executed": False,

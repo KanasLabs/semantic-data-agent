@@ -90,7 +90,7 @@ $env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
 Latest verified result on 2026-07-16:
 
 ```text
-Ran 90 tests
+Ran 130 tests
 OK
 ```
 
