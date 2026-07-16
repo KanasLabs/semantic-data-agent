@@ -517,10 +517,10 @@ Task / Goal = 某次要完成的具体目标</code></pre>
             </header>
             <div class="body">
               <ul>
-                <li>输入：trace、失败案例、专家标注、eval、代码库、Wren 配置</li>
+                <li>输入：trace、失败案例、范围业务确认、eval、代码库、Wren 配置</li>
                 <li>执行：定位原因、修改 prompt/rules/mapping/tests、跑评测</li>
                 <li>输出：候选 diff、测试结果、修复说明、风险说明</li>
-                <li>验收：eval 提升、回归通过、专家和工程师 review</li>
+                <li>验收：eval 提升、回归通过、业务确认者和工程师 review</li>
               </ul>
             </div>
           </div>
@@ -618,7 +618,7 @@ Task / Goal = 某次要完成的具体目标</code></pre>
           </div>
         </div>
         <div class="highlight green">
-          更推荐的优先级：先改进语义资产、样例库和评测集，再考虑修改核心代码。这样风险更低，也更贴近 Tax AI 式闭环。
+          参考 OpenAI、Thrive Holdings 和 Crete 的 <a href="https://openai.com/index/building-self-improving-tax-agents-with-codex/">Tax AI 工程案例</a>：先把有范围权限的业务 correction pair 和 production trace 聚合为 finding，并在 Codex 执行前冻结 EvalTarget；再改进语义资产、样例、schema、mapper、prompt 或代码。Eval 不是事后补充，而是候选修复的预先验收合同。
         </div>
 
         <h3>GMV 口径错误的例子</h3>
@@ -629,7 +629,7 @@ Task / Goal = 某次要完成的具体目标</code></pre>
 - 生成的 SQL
 - dry-run / execute 结果
 - 用户点踩
-- 专家标注：GMV = sum(payment_amount)，只统计 paid orders
+- 范围业务确认：GMV = sum(payment_amount)，只统计 paid orders
 
 Codex Runtime 可生成的候选改动：
 1. 更新 Wren metric definition
@@ -673,13 +673,13 @@ Codex Runtime 可生成的候选改动：
               <td>字段描述 / 业务术语解释</td>
               <td>适合</td>
               <td>中</td>
-              <td>需要业务专家确认。</td>
+              <td>需要相应范围的业务确认。</td>
             </tr>
             <tr>
               <td>business rules / metric definitions</td>
               <td>适合</td>
               <td>中</td>
-              <td>需要业务专家确认，并通过 eval。</td>
+              <td>需要相应范围的业务确认，并通过 eval。</td>
             </tr>
             <tr>
               <td>prompt 模板</td>
@@ -691,7 +691,7 @@ Codex Runtime 可生成的候选改动：
               <td>Wren relationships / model 结构</td>
               <td>可以，但要谨慎</td>
               <td>高</td>
-              <td>需要工程师 review、专家确认和回归测试。</td>
+              <td>需要工程师 review、范围业务确认和回归测试。</td>
             </tr>
             <tr>
               <td>SQL guardrail / 权限规则 / 核心代码</td>
@@ -705,39 +705,39 @@ Codex Runtime 可生成的候选改动：
 
       <section id="self-improving">
         <h2>7. Codex SDK 如何接入受控自改进闭环</h2>
-        <p>受控自改进闭环不是让系统无监督地自己改自己，而是把失败案例变成可验证、可审查的工程任务，再交给 Codex Runtime 执行。</p>
+        <p>受控自改进闭环不是让系统无监督地自己改自己，而是采用 Tax AI 的 eval-driven 模式：把有范围权限的业务修正与生产 trace 聚合成 finding，先冻结 EvalTarget，再把只读证据和可写候选工作区交给 Codex Runtime。</p>
         <div class="flow">
           <div class="flow-step">
-            <strong>1. Trace</strong>
-            <p>Hybrid Runtime 记录问题、context、prompt、SQL、dry-run、执行结果和用户反馈。</p>
+            <strong>1. Correction + Trace</strong>
+            <p>Hybrid Runtime 保存完整链路；范围业务确认者用自然语言提供 observed / expected correction pair 和业务真相 provenance，无需理解 SQL、Wren 或 Codex。</p>
           </div>
           <div class="flow-step">
-            <strong>2. Failure Mining</strong>
-            <p>聚合高频失败，判断是语义层、SQL 生成、权限、映射还是图表解释问题。</p>
+            <strong>2. Grouped Finding</strong>
+            <p>聚合同类 FailureCase，区分语义、SQL、权限、映射、基础设施和 benchmark 不确定性。</p>
           </div>
           <div class="flow-step">
-            <strong>3. Bounded Task</strong>
-            <p>Business Loop 准备任务说明、失败样例、专家标注、eval 和修改边界。</p>
+            <strong>3. Frozen EvalTarget</strong>
+            <p>根据已核验的范围业务修正创建并审核验收目标；候选执行期间不得弱化、删除或重写该目标。</p>
           </div>
           <div class="flow-step">
-            <strong>4. Codex Runtime</strong>
-            <p>Codex SDK 执行工程修复，修改语义层、规则、样例、prompt、代码或测试并运行评测。</p>
+            <strong>4. Bounded Codex Task</strong>
+            <p>Codex 读取只读生产证据，只写隔离 Context candidate 或 Git worktree，修改语义层、schema、mapper、prompt、代码或测试。</p>
           </div>
           <div class="flow-step">
-            <strong>5. Review Gate</strong>
-            <p>专家和工程师审查候选 diff，评测通过后发布到下一版 Hybrid Runtime。</p>
+            <strong>5. Eval / Review / Release</strong>
+            <p>外层运行 frozen target 和 regression；Context 走 semantic review/publish，代码走 Git PR/merge/deploy。</p>
           </div>
         </div>
-        <pre><code>失败 trace / 用户反馈 / 专家标注 / eval
- -> Business Loop 生成 bounded task
- -> 调用 Codex SDK 作为 Improvement Runtime
- -> Codex 读取 repo、Wren 配置、prompt、eval、trace
- -> Codex 定位失败原因
- -> Codex 修改候选语义层、样例、规则、prompt、代码或测试
- -> Codex 运行定向 eval 和 regression
- -> 输出候选 diff + 测试结果 + 修复说明
- -> 专家 / 工程师 review
- -> 合并后反哺下一版 Hybrid Business Runtime</code></pre>
+        <pre><code>范围业务 correction pair + production trace
+ -> 聚合为 GroupedFinding
+ -> 在修复前创建并冻结 EvalTarget
+ -> Business Loop 生成 BoundedCodexTask
+ -> Codex 读取 read-only evidence bundle
+ -> Codex 只写 Context candidate 或 Git worktree
+ -> 外层运行 frozen target eval 和 regression
+ -> 输出 semantic diff / review packet 或 Git PR
+ -> 业务确认者 / 工程师 review
+ -> 单独 publish Context 或 merge/deploy code</code></pre>
       </section>
 
       <section id="implementation">
@@ -753,39 +753,39 @@ Codex Runtime 可生成的候选改动：
           </thead>
           <tbody>
             <tr>
-              <td>Trace Store</td>
-              <td>保存每次问数的结构化链路。</td>
-              <td>request trace、SQL、context、错误、用户反馈。</td>
+              <td>Trace / Correction Store</td>
+              <td>保存每次问数链路以及范围业务 observed / expected correction pair。</td>
+              <td>production trace、correction provenance、版本身份。</td>
             </tr>
             <tr>
-              <td>Failure Miner</td>
+              <td>Finding Builder</td>
               <td>聚合失败案例，识别高频问题和根因候选。</td>
-              <td>failure cluster、优先级、问题类型。</td>
+              <td>GroupedFinding、优先级、问题类型、证据引用。</td>
             </tr>
             <tr>
-              <td>Eval Manager</td>
-              <td>维护定向 eval 和回归测试。</td>
-              <td>eval set、baseline、pass/fail report。</td>
+              <td>Eval Target Manager</td>
+              <td>在 Codex 执行前根据已核验的范围业务修正创建、审核并冻结验收目标。</td>
+              <td>frozen EvalTarget、target hash、regression suites。</td>
             </tr>
             <tr>
               <td>Task Composer</td>
-              <td>把失败聚类、专家标注和验收标准组织成 bounded task。</td>
-              <td>任务说明、上下文包、允许修改范围。</td>
+              <td>把 finding、frozen target、只读证据和可写边界组织成 bounded task。</td>
+              <td>任务说明、read-only roots、writable root、允许修改范围。</td>
             </tr>
             <tr>
               <td>Codex Runtime Adapter</td>
-              <td>调用 Codex SDK 执行工程修复任务。</td>
-              <td>candidate diff、测试结果、执行 trace。</td>
+              <td>调用 Codex 执行候选修复，不拥有 target、审批或发布权限。</td>
+              <td>Context candidate 或 Git diff、结构化 outcome、执行 trace。</td>
             </tr>
             <tr>
-              <td>Review Gate</td>
-              <td>控制专家和工程师审查、合并和发布。</td>
-              <td>review 结论、合并记录、发布版本。</td>
+              <td>Eval / Review / Release Gate</td>
+              <td>外层运行 frozen target 和 regression，控制两条发布通道。</td>
+              <td>semantic review/publish 或 Git PR/merge/deploy 记录。</td>
             </tr>
           </tbody>
         </table>
         <div class="highlight">
-          这里的 Codex SDK 是 Runtime Adapter 背后的执行能力；Business Loop 负责把“业务失败”翻译成“有边界的工程任务”。
+          这里的 Codex 是 Runtime Adapter 背后的执行能力；Business Loop 负责把范围业务修正和生产失败翻译成不可由候选执行器篡改验收标准的工程任务。Context candidate 与 Git worktree 必须使用不同的 review 和 release 通道。
         </div>
       </section>
 
@@ -809,7 +809,7 @@ Codex Runtime 可生成的候选改动：
             <tr>
               <td>中风险</td>
               <td>建议新增 business rule、修改字段描述、补充 metric definition。</td>
-              <td>需要领域专家确认。</td>
+              <td>需要相应范围的业务确认。</td>
             </tr>
             <tr>
               <td>高风险</td>

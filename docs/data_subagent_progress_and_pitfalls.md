@@ -1,6 +1,6 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
@@ -9,6 +9,270 @@ but current.
 
 The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
 Builder implementation.
+
+### BIRD Mini-Dev StarRocks Context Builder integration test
+
+Completed a realistic five-table Skill-first integration test on 2026-07-16
+using BIRD Mini-Dev `debit_card_specializing`. The old mechanical SQLite Wren
+project was not reused.
+
+Added a reproducible loader:
+
+```text
+scripts/setup_starrocks_bird.py
+tests/test_setup_starrocks_bird.py
+```
+
+Loaded and source/target row-count verified:
+
+```text
+database: bird_debit_card_specializing
+customers: 32,461
+gasstations: 5,716
+products: 591
+transactions_1k: 1,000
+yearmonth: 383,282
+```
+
+Real `generate-from-starrocks` result from an empty Wren project:
+
+```text
+project: data/wren/starrocks_bird_debit_card_specializing_wren_project
+duration: 1,169.4 seconds
+controlled queries: 37 executed
+models: 5
+relationships: 4
+repair rounds: 0
+wren validate/build/dry-run: passed
+artifact validation: passed
+```
+
+The candidate accepted four complete, zero-orphan snapshot relationships:
+transactions-to-customers, transactions-to-gasstations,
+transactions-to-products, and yearmonth-to-customers. It did not reproduce the
+old broken `customers.None` relationship. It rejected unsupported `CardID`,
+`ChainID`, and direct transactions-to-yearmonth joins.
+
+The original 30 BIRD cases were manually classified instead of trusted as
+absolute truth:
+
+```text
+audit: data/evals/audits/bird_mini_dev_debit_card_specializing_audit.jsonl
+verified: 9
+corrected: 2
+ambiguous: 3
+invalid_gold: 9
+dialect_issue: 7
+```
+
+The initial reviewed subset covers all five tables and four relationships:
+
+```text
+suite: data/evals/cases/bird_mini_dev_debit_card_specializing_verified10.jsonl
+first run: 20260716-112148-bird_starrocks_debit_card_verified10, 4/10
+rerun: 20260716-112855-bird_starrocks_debit_card_verified10_rerun, 10/10
+review status: 7 auto_pass, 3 needs_triage
+```
+
+The three triage cases passed the explicit business expectations but returned
+an additional explanatory aggregate column or a numerically equivalent ratio
+at different precision. Keep them as triage rather than forcing SQL-string or
+projection identity.
+
+Representative rerun traces:
+
+```text
+currency ratio: trace_f732255a68a644df9da509dacbe2c890
+least LAM consumption: trace_ea6b106a0c8946c88dc392003c895708
+CZE product descriptions: trace_5672ef2186d445b29e681bf627fe604d
+customer currency: trace_5286d3d9f6f44a5b9266693b5177dee8
+CZE time-window count: trace_489b912b08654148acb62887562cb4f2
+```
+
+Test-chain hardening discovered by the first run:
+
+- Wren CLI `query --limit` appended another LIMIT when semantic SQL already
+  ended in `LIMIT`, causing valid top-1 queries to fail during execution.
+  `WrenCliAdapter` now omits the CLI limit for an existing trailing LIMIT and
+  clamps an excessive existing limit to the configured safety bound.
+- Czech product descriptions caused the Windows GBK console to fail after the
+  eval artifacts were already written. The Data Subagent CLI now configures
+  UTF-8 stdout explicitly.
+- Gold result comparison now normalizes insignificant floating execution noise.
+- SQL-fragment assertions no longer require one specific conditional-aggregate
+  form when equivalent COUNT subqueries are valid.
+
+Detailed notes are in `docs/bird_starrocks_context_builder_test.md`. Latest
+full verification: `90` unit tests passed.
+
+### BIRD real clarification and resume HITL test
+
+Completed a real ambiguity-gate test on 2026-07-16 using original BIRD case
+0012. The initial request intentionally omitted the customer qualification
+grain, denominator, and NULL policy.
+
+```text
+registry: data/tmp/bird_hitl_clarification/registry
+base candidate: candidate_c60febb64e924156876184a9242f8a00
+revision: revision_38103177ef9249b18c889190275f065f
+candidate: candidate_6b53e453eab54042b91e70e8c3e61e1c
+clarification task: task_548105cdcfd34159abcd2809d73e9616
+```
+
+Codex did not guess. It returned `clarification_required`; Builder persisted two
+focused questions and left the candidate `DRAFT`. The user then declared:
+
+- a LAM customer qualifies when any `yearmonth` row has `Consumption > 46.73`
+- the denominator is all distinct LAM customers with a `yearmonth` record
+- NULL Consumption keeps the customer in the denominator but does not qualify
+
+Both answers were stored as `user_declared_business_truth`. `resume-revision`
+updated two field descriptions, one rule, and added one confirmed SQL example.
+It changed no Models or Relationships and recorded zero assumptions and zero
+unresolved questions.
+
+Deterministic target result:
+
+```text
+denominator customers: 3,611
+qualifying customers: 3,594
+percentage: 99.5292163%
+```
+
+The first resumed acceptance entered `SMOKE_FAILED` even though the answer was
+correct because the new test required the literal `DISTINCT` syntax and compared
+a Wren decimal string to a float. The eval normalizer now handles numeric strings
+and stable floating precision; the business suite accepts equivalent per-customer
+`GROUP BY + MAX` SQL. `retry-revision-evals` reused the same Context without
+another Codex call.
+
+Final review-gate result:
+
+```text
+candidate/revision after review: APPROVED / APPROVED
+wren validate/build: passed
+generated smoke: 3/3
+BIRD Verified10 regression: 10/10
+clarified semantic regression: 1/1
+semantic trace: trace_84a76a03435d4c2d8c022dd96ccf9652
+review packet: generated
+approval task: task_bc1cd9b98d3243d2abc2401c39b0bba2
+approval answer: answer_14f441c661d64e0eb707634308ad87e0
+approval provenance: user_review_decision
+publication: not performed
+```
+
+This verifies the real clarification pause, resume, review, and explicit human
+approval path. Approval did not create a published pointer; publication still
+requires a separate explicit user confirmation. Codex did not approve or
+publish automatically.
+
+### Controlled self-improvement architecture and SI0 contract
+
+Added `docs/data_agent_self_improvement_architecture_si0_contract.md` to define
+the separate background `data_agent_improvement` workstream. The confirmed
+reference is OpenAI, Thrive Holdings, and Crete's engineering case:
+
+```text
+https://openai.com/index/building-self-improving-tax-agents-with-codex/
+```
+
+The transferable Tax AI pattern is production correction and eval driven, not
+model-weight training: business correction pairs and production traces become
+grouped findings; a reviewed EvalTarget is frozen before Codex starts; Codex
+receives read-only evidence and a writable candidate workspace; outer eval and
+regression gates produce either a Context review packet or a Git PR candidate.
+Codex never self-approves, publishes, merges, or deploys.
+
+The agreed SI0 boundary is intentionally read-only:
+
+```text
+versioned trace + eval result + optional business correction pair
+-> normalized failure case
+-> immutable improvement registry
+-> reproducible triage report
+```
+
+SI0 adds version identity, correction-bearing `FeedbackRecord`, `FailureCase`,
+an atomic and idempotent Improvement Store, read-only ingestion/report CLI
+contracts, backward compatibility for current trace JSONL, and deterministic
+acceptance scenarios. It must not invoke Codex, Wren, a database, Context
+revision, approval, publication, or rollback.
+
+The revised phase boundary is:
+
+```text
+SI0: correction pairs, versioned traces, FailureCase inbox
+SI1: deterministic triage, GroupedFinding, frozen EvalTarget
+SI2: bounded Codex task over an isolated Wren candidate
+SI3: bounded Codex task over a Git worktree and PR candidate
+SI4: release health, recurrence monitoring, and rollback recommendation
+```
+
+Context Registry publication and Git merge/deploy are separate release
+channels. In both channels the target eval is controlled by the outer workflow
+and cannot be weakened by the Codex candidate executor.
+
+A project-fit review then narrowed the Tax AI transfer instead of copying its
+tax-form assumptions directly:
+
+- `FeedbackRecord` is the general envelope; a business correction pair is
+  optional and ordinary ratings remain unverified.
+- an authorized high-confidence correction may create a singleton finding;
+  lower-confidence feedback still requires clustering or human triage.
+- EvalTargets prefer result equivalence, business invariants, units, and safety
+  constraints over exact SQL-string identity.
+- EvalTargets are versioned through draft/review/approved/frozen and may be
+  superseded or invalidated only by a new outer-workflow decision.
+- Trace v2 includes data identity and result/schema hashes because production
+  databases are mutable.
+- candidate results distinguish `INCONCLUSIVE` and `EVAL_TARGET_INVALID` from
+  real regressions.
+- a minimized Evidence Packager sits between raw traces and later Codex tasks;
+  raw `result_preview` rows are not automatically exposed.
+- actor authority must be verified before SI2 can encode business truth into a
+  Wren candidate.
+
+The SI0 terminology was narrowed for the project's real users. “Expert” does
+not mean a SQL, Wren, Codex, or company-wide domain expert. A
+`BUSINESS_CONTRIBUTOR` may state expected behavior in natural language, while
+an `AUTHORIZED_BUSINESS_CONFIRMER` is verified only for named Context IDs and
+narrow scopes such as a field unit, status policy, or metric denominator. An
+authority claim is separate from project-confirmed authority. The same person
+may confirm business truth and approve a candidate in the MVP, but these remain
+two explicit recorded actions; “unknown” remains unresolved rather than being
+guessed by Codex.
+
+Natural-language feedback does not by itself require Codex SDK. SI0 can store
+text deterministically through a CLI, form, chat UI, or ordinary API. Codex SDK
+belongs to SI2/SI3 candidate investigation and repair, where it may also turn
+unresolved evidence into focused business questions. It does not grant
+authority, decide business truth, or approve its own candidate.
+
+These adjustments preserve the Tax AI correction/eval/bounded-worktree pattern
+while fitting Wren semantic SQL, equivalent-query evaluation, noisy BIRD labels,
+low-volume MVP operation, DeepSeek variability, and existing HITL publication.
+
+Documentation verification:
+
+```text
+UTF-8/title/code-fence structure check:
+OK sections=26 code_fences=72 roles=4 sdk_boundary=SI0_vs_SI2
+
+Tax AI contract term check across the SI0 Markdown and both architecture HTML pages:
+OK correction pair / GroupedFinding / EvalTarget / Bounded Codex Task / dual release
+
+Project-fit contract check:
+OK singleton / data_identity / scoped business confirmer / authority claim vs.
+verified authority / natural-language SI0 vs. Codex SDK SI2 boundary / semantic
+result contract / Evidence Packager / INCONCLUSIVE / EVAL_TARGET_INVALID
+
+git diff --check -- runtime_codex_hybrid_self_improving.html intelligent_text2sql_agent_architecture.html docs/data_subagent_progress_and_pitfalls.md
+OK
+```
+
+No runtime code, local Context Registry, Wren state, trace, or eval artifact was
+changed during this design-only milestone.
 
 ### Main Agent orchestration architecture note
 
@@ -35,8 +299,8 @@ candidate Context
 -> explicit publish updates the Context Registry
 ```
 
-The user/domain expert owns business truth and approval. Codex owns most
-investigation and implementation. Builder owns immutable versions, safety,
+The scoped business confirmer owns business truth and the human owns approval.
+Codex owns most investigation and implementation. Builder owns immutable versions, safety,
 provenance, deterministic acceptance, and publish control. Codex must not
 self-approve or self-publish.
 
@@ -283,7 +547,7 @@ Current implementation:
   validation output under the target project's `onboarding/` directory.
 - A real BIRD Mini-Dev `debit_card_specializing` run completed with 5 models,
   4 relationships, successful Wren validate/build/dry-run, and no repair round.
-- Latest full verification: `81` unit tests passed.
+- Latest full verification: `90` unit tests passed.
 
 Current architectural classification: this is a bounded agentic workflow tool,
 not yet a standalone subagent. The workflow stages and stopping conditions are
@@ -321,7 +585,7 @@ completed-only CNY semantic regression: 1/1 passed
 semantic result: 721.80 CNY
 semantic trace: trace_260065c826c54db4ac635798959fd9e2
 relationship trace: trace_cd5475b7fd354b998ba38a720e70a0af
-unit tests: 81 passed
+unit tests: 81 passed at the original HITL acceptance milestone; latest full suite is 90 passed
 ```
 
 `semantic_diff.json` records the two field-description changes, rule change,
@@ -512,8 +776,8 @@ passed. The repaired runner and fully automatic StarRocks outer acceptance path
 are covered by unit tests; repeat the real fixture run when changing process or
 prompt behavior.
 
-The candidate remains non-production and requires expert answers for key
-enforcement/deduplication, `total_amount` unit and accounting semantics,
+The candidate remains non-production and requires scoped business confirmation
+for key enforcement/deduplication, `total_amount` unit and accounting semantics,
 `order_date` / `signup_date` event meaning, status and region taxonomies, and
 whether customer references are guaranteed for late-arriving data.
 
@@ -582,8 +846,8 @@ wren memory index: incomplete; model initialization failed, then timed out
 ```
 
 No cubes, calculated business metrics, currencies, revenue formulas, default
-time fields, or company-specific policies were inferred. Expert review remains
-required for key enforcement, units/currencies, discount/tax representation,
+time fields, or company-specific policies were inferred. Scoped business review
+remains required for key enforcement, units/currencies, discount/tax representation,
 status/code meanings, date selection, late-arriving data, composite-key
 representation, and whether redundant direct lineitem joins should be exposed.
 
