@@ -1,0 +1,7 @@
+schema_version: 5
+name: bird_debit_card_specializing
+version: '1.0'
+catalog: wren
+schema: public
+data_source: doris
+profile: bird_debit_card_specializing

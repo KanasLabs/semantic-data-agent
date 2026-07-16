@@ -1,0 +1,35 @@
+name: gasstations
+table_reference:
+  catalog: default_catalog
+  schema: bird_debit_card_specializing
+  table: gasstations
+columns:
+- name: GasStationID
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: "Source gas-station identifier; non-null and unique across the inspected snapshot. StarRocks DUPLICATE KEY does not enforce this uniqueness."
+- name: ChainID
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source chain identifier. No chain dimension table is present in the allowlisted database."
+- name: Country
+  type: VARCHAR(8)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source country code. CZE and SVK were observed; the governing code standard is not confirmed."
+- name: Segment
+  type: VARCHAR(32)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source station segment label. Observed labels include Other, Premium, Noname, Value for money, and Discount; policy meanings are unconfirmed."
+cached: false
+properties:
+  description: "Gas-station records with chain, country, and source segment attributes."
+primary_key: GasStationID

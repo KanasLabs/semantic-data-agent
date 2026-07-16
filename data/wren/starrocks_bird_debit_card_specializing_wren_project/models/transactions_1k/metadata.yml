@@ -1,0 +1,65 @@
+name: transactions_1k
+table_reference:
+  catalog: default_catalog
+  schema: bird_debit_card_specializing
+  table: transactions_1k
+columns:
+- name: TransactionID
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: "Source transaction identifier; non-null and unique across the inspected 1,000-row snapshot. StarRocks DUPLICATE KEY does not enforce this uniqueness."
+- name: Date
+  type: DATE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source transaction date. The current snapshot spans 2012-08-23 through 2012-08-26; no default reporting date or window is assigned."
+- name: Time
+  type: VARCHAR(16)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source transaction time stored as text. Observed values have HH:MM:SS-like text, but timezone and time semantics are unconfirmed."
+- name: CustomerID
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Customer identifier. All 1,000 inspected rows matched customers.CustomerID with zero snapshot orphans."
+- name: CardID
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source card identifier. No card dimension table is present in the allowlisted database."
+- name: GasStationID
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Gas-station identifier. All 1,000 inspected rows matched gasstations.GasStationID with zero snapshot orphans."
+- name: ProductID
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Product identifier. All 1,000 inspected rows matched products.ProductID with zero snapshot orphans."
+- name: Amount
+  type: BIGINT
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Recorded transaction amount value. Observed values range from 0 to 264; the unit and interpretation are unconfirmed."
+- name: Price
+  type: DOUBLE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Recorded transaction price value. Observed values range from 1.76 to 5762.49; currency, tax treatment, and accounting meaning are unconfirmed."
+cached: false
+properties:
+  description: "The source transaction table currently contains 1,000 rows with customer, card, station, product, amount, and price fields. Whether it is a sample or complete history is unresolved."
+primary_key: TransactionID

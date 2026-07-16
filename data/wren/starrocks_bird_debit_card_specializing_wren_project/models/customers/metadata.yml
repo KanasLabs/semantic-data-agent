@@ -1,0 +1,29 @@
+name: customers
+table_reference:
+  catalog: default_catalog
+  schema: bird_debit_card_specializing
+  table: customers
+columns:
+- name: CustomerID
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: "Source customer identifier; non-null and unique across the inspected snapshot. StarRocks DUPLICATE KEY does not enforce this uniqueness."
+- name: Segment
+  type: VARCHAR(32)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source customer segment label. SME, LAM, and KAM were observed; their business definitions require expert confirmation."
+- name: Currency
+  type: VARCHAR(8)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Currency code stored on the customer row. CZK and EUR were observed; no link to transaction Price or yearmonth Consumption is assumed."
+cached: false
+properties:
+  description: "Customer records with source segment and currency attributes. This is a reviewable schema model, not an approved customer taxonomy."
+primary_key: CustomerID

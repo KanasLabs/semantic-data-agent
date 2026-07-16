@@ -87,10 +87,10 @@ Run tests:
 $env:PYTHONPATH='src'; .\.venv-wren\python.exe -m unittest discover -s tests
 ```
 
-Latest verified result on 2026-07-15:
+Latest verified result on 2026-07-16:
 
 ```text
-Ran 81 tests
+Ran 90 tests
 OK
 ```
 

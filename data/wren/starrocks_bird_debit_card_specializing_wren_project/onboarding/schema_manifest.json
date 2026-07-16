@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-16T03:08:30.5200240Z",
+  "purpose": "Process evidence for a reviewable Wren Context candidate; not production semantic truth.",
+  "source": {
+    "catalog": "default_catalog",
+    "database": "bird_debit_card_specializing",
+    "datasource": "doris",
+    "query_evidence": "onboarding/starrocks_query_evidence.jsonl",
+    "discovery_snapshot": "onboarding/discovery_snapshot.json"
+  },
+  "type_normalization": {
+    "dialect": "mysql",
+    "method": "wren utils parse-type",
+    "mappings": {
+      "bigint": "BIGINT",
+      "varchar(6)": "VARCHAR(6)",
+      "varchar(8)": "VARCHAR(8)",
+      "varchar(16)": "VARCHAR(16)",
+      "varchar(32)": "VARCHAR(32)",
+      "varchar(255)": "VARCHAR(255)",
+      "date": "DATE",
+      "double": "DOUBLE"
+    }
+  },
+  "tables": [
+    {
+      "name": "customers",
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["CustomerID"], "partitioned": false, "distribution_columns": ["CustomerID"], "buckets": 1, "secondary_indexes": []},
+      "row_count": 32461,
+      "logical_key": {"columns": ["CustomerID"], "basis": "snapshot non-null and uniqueness check", "wren_primary_key": "CustomerID", "enforced_by_source": false},
+      "columns": [
+        {"name": "CustomerID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": true},
+        {"name": "Segment", "raw_type": "varchar(32)", "type": "VARCHAR(32)", "source_not_null": false},
+        {"name": "Currency", "raw_type": "varchar(8)", "type": "VARCHAR(8)", "source_not_null": false}
+      ]
+    },
+    {
+      "name": "gasstations",
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["GasStationID"], "partitioned": false, "distribution_columns": ["GasStationID"], "buckets": 1, "secondary_indexes": []},
+      "row_count": 5716,
+      "logical_key": {"columns": ["GasStationID"], "basis": "snapshot non-null and uniqueness check", "wren_primary_key": "GasStationID", "enforced_by_source": false},
+      "columns": [
+        {"name": "GasStationID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": true},
+        {"name": "ChainID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "Country", "raw_type": "varchar(8)", "type": "VARCHAR(8)", "source_not_null": false},
+        {"name": "Segment", "raw_type": "varchar(32)", "type": "VARCHAR(32)", "source_not_null": false}
+      ]
+    },
+    {
+      "name": "products",
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["ProductID"], "partitioned": false, "distribution_columns": ["ProductID"], "buckets": 1, "secondary_indexes": []},
+      "row_count": 591,
+      "logical_key": {"columns": ["ProductID"], "basis": "snapshot non-null and uniqueness check", "wren_primary_key": "ProductID", "enforced_by_source": false},
+      "columns": [
+        {"name": "ProductID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": true},
+        {"name": "Description", "raw_type": "varchar(255)", "type": "VARCHAR(255)", "source_not_null": false}
+      ]
+    },
+    {
+      "name": "transactions_1k",
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["TransactionID"], "partitioned": false, "distribution_columns": ["TransactionID"], "buckets": 1, "secondary_indexes": []},
+      "row_count": 1000,
+      "logical_key": {"columns": ["TransactionID"], "basis": "snapshot non-null and uniqueness check", "wren_primary_key": "TransactionID", "enforced_by_source": false},
+      "columns": [
+        {"name": "TransactionID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": true},
+        {"name": "Date", "raw_type": "date", "type": "DATE", "source_not_null": false},
+        {"name": "Time", "raw_type": "varchar(16)", "type": "VARCHAR(16)", "source_not_null": false},
+        {"name": "CustomerID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "CardID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "GasStationID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "ProductID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "Amount", "raw_type": "bigint", "type": "BIGINT", "source_not_null": false},
+        {"name": "Price", "raw_type": "double", "type": "DOUBLE", "source_not_null": false}
+      ]
+    },
+    {
+      "name": "yearmonth",
+      "physical_design": {"key_model": "DUPLICATE KEY", "key_columns": ["Date", "CustomerID"], "partitioned": false, "distribution_columns": ["CustomerID"], "buckets": 1, "secondary_indexes": []},
+      "row_count": 383282,
+      "logical_key": {"columns": ["Date", "CustomerID"], "basis": "snapshot non-null and composite uniqueness check", "wren_primary_key": null, "enforced_by_source": false, "note": "No false single-column primary key is emitted."},
+      "columns": [
+        {"name": "Date", "raw_type": "varchar(6)", "type": "VARCHAR(6)", "source_not_null": true},
+        {"name": "CustomerID", "raw_type": "bigint", "type": "BIGINT", "source_not_null": true},
+        {"name": "Consumption", "raw_type": "double", "type": "DOUBLE", "source_not_null": false}
+      ]
+    }
+  ],
+  "relationships": [
+    {"name": "transactions_1k_to_customers", "models": ["transactions_1k", "customers"], "join_type": "MANY_TO_ONE", "condition": "transactions_1k.CustomerID = customers.CustomerID", "evidence_hash": "16fbea5c5fff40253aec92b4e5df7d85c3b3a6793c0a1185f42841418d2a1d59", "child_rows": 1000, "matched_rows": 1000, "orphans": 0},
+    {"name": "transactions_1k_to_gasstations", "models": ["transactions_1k", "gasstations"], "join_type": "MANY_TO_ONE", "condition": "transactions_1k.GasStationID = gasstations.GasStationID", "evidence_hash": "16fbea5c5fff40253aec92b4e5df7d85c3b3a6793c0a1185f42841418d2a1d59", "child_rows": 1000, "matched_rows": 1000, "orphans": 0},
+    {"name": "transactions_1k_to_products", "models": ["transactions_1k", "products"], "join_type": "MANY_TO_ONE", "condition": "transactions_1k.ProductID = products.ProductID", "evidence_hash": "16fbea5c5fff40253aec92b4e5df7d85c3b3a6793c0a1185f42841418d2a1d59", "child_rows": 1000, "matched_rows": 1000, "orphans": 0},
+    {"name": "yearmonth_to_customers", "models": ["yearmonth", "customers"], "join_type": "MANY_TO_ONE", "condition": "yearmonth.CustomerID = customers.CustomerID", "evidence_hash": "16fbea5c5fff40253aec92b4e5df7d85c3b3a6793c0a1185f42841418d2a1d59", "child_rows": 383282, "matched_rows": 383282, "orphans": 0}
+  ],
+  "semantic_limits": [
+    "No business metrics, cubes, calculated columns, currencies for Price or Consumption, tax rules, or default time fields are declared.",
+    "Observed code values are described as source labels only.",
+    "All logical key and relationship claims are snapshot-supported candidates rather than source-enforced constraints."
+  ]
+}

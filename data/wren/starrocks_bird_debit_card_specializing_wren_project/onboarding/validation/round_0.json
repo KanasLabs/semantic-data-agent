@@ -1,0 +1,38 @@
+{
+  "context_validate": {
+    "args": [
+      "context",
+      "validate"
+    ],
+    "returncode": 0,
+    "stdout": "Valid — 5 models, 0 views, 4 relationships.\n",
+    "stderr": ""
+  },
+  "context_build": {
+    "args": [
+      "context",
+      "build"
+    ],
+    "returncode": 0,
+    "stdout": "Built: 5 models, 0 views → <project-root>\\data\\wren\\starrocks_bird_debit_card_specializing_wren_project\\target\\mdl.json\n\nNext: wren --sql 'SELECT ...' to query your data.\n",
+    "stderr": ""
+  },
+  "dry_run": {
+    "args": [
+      "dry-run",
+      "--sql",
+      "SELECT COUNT(*) AS customer_count FROM customers"
+    ],
+    "returncode": 0,
+    "stdout": "OK\n",
+    "stderr": ""
+  },
+  "onboarding_artifacts": {
+    "args": [
+      "validate-starrocks-onboarding-artifacts"
+    ],
+    "returncode": 0,
+    "stdout": "Valid discovery artifacts with 37 executed evidence records.",
+    "stderr": ""
+  }
+}

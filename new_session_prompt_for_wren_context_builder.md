@@ -100,7 +100,7 @@ onboarding/validation/round_<n>.json
 最新完整测试：
 
 ```text
-Ran 81 tests
+Ran 90 tests
 OK
 ```
 
@@ -133,6 +133,21 @@ TPC-H SF 0.01 StarRocks 已完成真实 Skill-first onboarding：Codex 只通过
 manifest、rules 和 examples；Wren validate/build、三表 Join、复合键 Join 均通过，
 Data Subagent smoke rerun 为 5/5。项目路径是
 `data/wren/tpch_starrocks_wren_project`。
+
+BIRD Mini-Dev `debit_card_specializing` 也已完成 StarRocks Skill-first 集成测试：
+五张表约 42 万行通过 `scripts/setup_starrocks_bird.py` 可复现导入；Codex 执行 37 条
+受控查询，生成 5 Models、4 个零孤儿关系，Wren 验收通过且未复现旧
+`customers.None` 关系。30 条原始 Gold 已分类，首批 Verified10 覆盖五表四关系；
+修复测试链路的 Wren 重复 LIMIT、Windows UTF-8 和浮点比较后，评测为 10/10，
+其中 7 auto-pass、3 needs-triage。详见
+`docs/bird_starrocks_context_builder_test.md`。
+
+BIRD case 0012 还完成了真实 clarification/resume HITL：Codex 对缺少 grain、
+denominator 和 NULL policy 的请求返回 `CLARIFICATION_REQUIRED`；用户回答后在同一
+revision 恢复，生成基于 distinct LAM customer 的规则和 SQL example。Wren、3 条
+smoke、Verified10 和新语义回归全部通过，结果为 3,594 / 3,611 = 99.5292163%。
+用户查看 review packet 后已显式批准，候选和 revision 均为 `APPROVED`，批准
+provenance 为 `user_review_decision`。尚未 publish，且 published pointer 不存在。
 
 ## 当前边界和未完成项
 

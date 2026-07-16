@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-16T03:08:30.5200240Z",
+  "candidate_status": "review_required",
+  "scope": {
+    "catalog": "default_catalog",
+    "database": "bird_debit_card_specializing",
+    "datasource": "doris",
+    "type_normalization_dialect": "mysql",
+    "access_path": "data_subagent_context_builder.cli starrocks-query"
+  },
+  "evidence": {
+    "path": "onboarding/starrocks_query_evidence.jsonl",
+    "executed_query_count": 37,
+    "failed_query_count": 0,
+    "rejected_query_count": 0,
+    "truncated_query_count": 0,
+    "scope_hashes": {
+      "show_catalogs": "02b27953a030c01be70de920f35d9e66dbd0b8d147cc7ac8aa74dcdb2c8de9e7",
+      "show_databases": "a740cc5c94b80233f96b02c201b6c98be44a384f5ad5b3c8120d1a239d4e3128",
+      "show_tables": "e868199d686f7b219a72c02895b3136233e149e0b9974e5b538d823a58021f71"
+    },
+    "schema_hashes": {
+      "customers": "73837bb0339178773a53945e13f90053ccce4538903e9e98e5182b06148204f5",
+      "gasstations": "3a66f593e4448ab3a0b31384fb7e633ced960f3609fbf0d2cfc9d433b885e6b6",
+      "products": "1db8ccefa24b4871f9418eaadc6e2f3fcdbcd584c41d16b03cab315fc627933e",
+      "transactions_1k": "6d0177c83a63a6efe70551930257b1cf4c28e996bb28b4edb1fee22db71627a0",
+      "yearmonth": "91b06de1298dd4ccd3120b5cf9a0837666b6b95175c24becff2a8195c2dbb02f"
+    },
+    "ddl_hashes": {
+      "customers": "90b368d43c77dd48026168e93938c52067ce026f9f8097db14be615dae6dd61a",
+      "gasstations": "6d35713843ec2ab53ec294643c181513b9ef6db5767e8ed5b2dc3af2fac1abc9",
+      "products": "c19864ad40efb6b902744ae30c2b90f98d8065d10b636cc5a8fd10a8127a3b0f",
+      "transactions_1k": "399639532acea5ceb28d02fd284a422f37c34a4952610db6b6e39e8ea8de8235",
+      "yearmonth": "3cebd360f3e8af110da4d7e692a5cf9eeeb810b78747aafbf38100a39d6445e1"
+    },
+    "partition_hashes": {
+      "customers": "7f51d35ad840bc438b73ba3023e041cc09627b4f4276a9673c3b9ed63ba09a4f",
+      "gasstations": "a8c39f9739fc4ee19a97e610a45ad53b3b87a050c587830504882385f47ef147",
+      "products": "d942adb1cfffebb802836aacede46d196eaa2f5ee4d12f3ebe611c7c30c67a29",
+      "transactions_1k": "907a551efc862c584f7c5a0c4943a14b88af5dd12d158e7772a452e7b26ee3b3",
+      "yearmonth": "02aeaecef4d5c965fa29cac93f5531b9e448f85d6e18abc0cdbf4be5f133b88a"
+    },
+    "shared_empty_index_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "row_count_hash": "dcfe4f63df73ae78ab6a0ee52b273e064541195dd73b62472f1e8316b4d93833",
+    "single_key_check_hash": "e2a0024812dc54d299fa00b1931d07e36cda0b410f0ddefd3808739eb741c1c1",
+    "composite_key_check_hash": "b1c57c038ceabae2342e2273f9d7a869abda3b6044a2aa55fd71c4d6a1a4b2f4",
+    "relationship_check_hash": "16fbea5c5fff40253aec92b4e5df7d85c3b3a6793c0a1185f42841418d2a1d59",
+    "profile_hashes": {
+      "customers": "073043309f4253a8c318c275e6ec25c75e35819b831bfdd168ee37e0dcd86b94",
+      "gasstations": "6a0df3ef7d3a73e4b0ea610d56979f1c3518522993c6922b39648a27a4d776c5",
+      "products": "03c31d5795828fcaf592ec858daa5d8ccfd4e717449a812ca43c3608b13546dd",
+      "transactions_1k": "3e225297bbc4c96184bf00ce721e0bae98ce3b7592b77c1ace86ce528ccd8803",
+      "yearmonth": "94c86f967271315d27fc3a25ed30092eaed96c133c1a7eb411709fb6c190af8f"
+    },
+    "sample_hashes": {
+      "customers": "44b4422181ac9f6f04ceb943f5e96b239a45fe0db71d5d4147c8630cbbff3691",
+      "gasstations": "9e01131aa3e80edde49ee2cd00311b0484255e138ce69100fd44d9f08019c260",
+      "products": "642d8cef2b5ebcfe34ab930484ff78ea3760019c7cd11d5796b708b85bab367e",
+      "transactions_1k": "77ebf32bde5e966757aa889ed587484c97023688348b647124e9fa42db19ab52",
+      "yearmonth": "c356e2f6880e1652733a019dd651ce215dfc0f9b183df1360f0f6fc175c4567b"
+    }
+  },
+  "inspected_objects": [
+    {
+      "table": "customers",
+      "row_count": 32461,
+      "column_count": 3,
+      "duplicate_key_columns": ["CustomerID"],
+      "distribution": {"type": "HASH", "columns": ["CustomerID"], "buckets": 1},
+      "partition_count": 1,
+      "secondary_index_count": 0,
+      "logical_key": {"columns": ["CustomerID"], "snapshot_non_null": true, "snapshot_unique": true}
+    },
+    {
+      "table": "gasstations",
+      "row_count": 5716,
+      "column_count": 4,
+      "duplicate_key_columns": ["GasStationID"],
+      "distribution": {"type": "HASH", "columns": ["GasStationID"], "buckets": 1},
+      "partition_count": 1,
+      "secondary_index_count": 0,
+      "logical_key": {"columns": ["GasStationID"], "snapshot_non_null": true, "snapshot_unique": true}
+    },
+    {
+      "table": "products",
+      "row_count": 591,
+      "column_count": 2,
+      "duplicate_key_columns": ["ProductID"],
+      "distribution": {"type": "HASH", "columns": ["ProductID"], "buckets": 1},
+      "partition_count": 1,
+      "secondary_index_count": 0,
+      "logical_key": {"columns": ["ProductID"], "snapshot_non_null": true, "snapshot_unique": true}
+    },
+    {
+      "table": "transactions_1k",
+      "row_count": 1000,
+      "column_count": 9,
+      "duplicate_key_columns": ["TransactionID"],
+      "distribution": {"type": "HASH", "columns": ["TransactionID"], "buckets": 1},
+      "partition_count": 1,
+      "secondary_index_count": 0,
+      "logical_key": {"columns": ["TransactionID"], "snapshot_non_null": true, "snapshot_unique": true}
+    },
+    {
+      "table": "yearmonth",
+      "row_count": 383282,
+      "column_count": 3,
+      "duplicate_key_columns": ["Date", "CustomerID"],
+      "distribution": {"type": "HASH", "columns": ["CustomerID"], "buckets": 1},
+      "partition_count": 1,
+      "secondary_index_count": 0,
+      "logical_key": {"columns": ["Date", "CustomerID"], "snapshot_non_null": true, "snapshot_unique": true, "represented_as_wren_primary_key": false}
+    }
+  ],
+  "findings": [
+    "All five tables are StarRocks OLAP DUPLICATE KEY tables; these physical keys are not uniqueness constraints.",
+    "All five tables have one unpartitioned physical partition, one HASH distribution bucket, and no reported secondary indexes.",
+    "CustomerID, GasStationID, ProductID, and TransactionID are snapshot-unique and non-null in their respective tables and are candidate logical Wren primary keys.",
+    "The yearmonth snapshot is unique and non-null on the composite (Date, CustomerID) pair; neither column is unique alone, so no single-column Wren primary key is declared.",
+    "The four accepted child-to-parent joins have complete snapshot coverage and zero orphans.",
+    "Customer Segment values observed were SME, LAM, and KAM; Currency values observed were CZK and EUR. Their business definitions were not inferred.",
+    "Gas-station Country values observed were CZE and SVK; station Segment labels were profiled but their business policy was not inferred.",
+    "transactions_1k contains 1,000 rows dated from 2012-08-23 through 2012-08-26 in the current snapshot; whether it is a sample or complete history is unresolved.",
+    "yearmonth.Date is a six-character VARCHAR with observed values from 201112 through 201311; no calendar or reporting semantics are assigned.",
+    "Negative Consumption values and zero Amount values occur in the snapshot and must not be filtered without business confirmation."
+  ],
+  "accepted_relationships": [
+    {"child": "transactions_1k.CustomerID", "parent": "customers.CustomerID", "join_type": "MANY_TO_ONE", "child_rows": 1000, "matched_rows": 1000, "orphan_rows": 0},
+    {"child": "transactions_1k.GasStationID", "parent": "gasstations.GasStationID", "join_type": "MANY_TO_ONE", "child_rows": 1000, "matched_rows": 1000, "orphan_rows": 0},
+    {"child": "transactions_1k.ProductID", "parent": "products.ProductID", "join_type": "MANY_TO_ONE", "child_rows": 1000, "matched_rows": 1000, "orphan_rows": 0},
+    {"child": "yearmonth.CustomerID", "parent": "customers.CustomerID", "join_type": "MANY_TO_ONE", "child_rows": 383282, "matched_rows": 383282, "orphan_rows": 0}
+  ],
+  "rejected_relationship_candidates": [
+    {"candidate": "transactions_1k.CardID -> cards", "reason": "No cards table is present in the allowlisted database."},
+    {"candidate": "gasstations.ChainID -> chains", "reason": "No chains table is present in the allowlisted database."},
+    {"candidate": "transactions_1k.CustomerID <-> yearmonth.CustomerID", "reason": "Both sides repeat CustomerID, creating a many-to-many path that is redundant with the two validated relationships through customers."},
+    {"candidate": "transactions_1k.Date <-> yearmonth.Date", "reason": "The source types and observed grains differ (DATE versus six-character VARCHAR), and no expert-confirmed transformation semantics are available."}
+  ],
+  "open_questions": [
+    "Are the candidate logical identifiers enforced or deduplicated upstream despite StarRocks DUPLICATE KEY storage?",
+    "Does transactions_1k represent a sample, a bounded extract, or complete transaction history?",
+    "What are the units and business definitions of Amount, Price, and Consumption, including tax treatment and whether negative Consumption values are adjustments or valid activity?",
+    "Does customers.Currency govern transactions_1k.Price, yearmonth.Consumption, both, or neither?",
+    "What exact period and calendar semantics does yearmonth.Date encode, and should it ever be transformed to a date?",
+    "What do the customer and gas-station Segment codes mean, and are Country values governed by a known code standard?",
+    "Are customer, gas-station, and product references guaranteed for late-arriving or historical data?",
+    "Will card and chain dimension tables be onboarded later?"
+  ]
+}

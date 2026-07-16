@@ -1,0 +1,27 @@
+name: yearmonth
+table_reference:
+  catalog: default_catalog
+  schema: bird_debit_card_specializing
+  table: yearmonth
+columns:
+- name: Date
+  type: VARCHAR(6)
+  is_calculated: false
+  not_null: true
+  properties:
+    description: "Six-character source period field. Observed values range lexically from 201112 through 201311; calendar and reporting semantics are not assigned."
+- name: CustomerID
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  properties:
+    description: "Customer identifier. All 383,282 inspected rows matched customers.CustomerID with zero snapshot orphans."
+- name: Consumption
+  type: DOUBLE
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Recorded consumption value. Observed values include negatives and range from -582092.86 to 2052187.11; unit and sign meaning are unconfirmed."
+cached: false
+properties:
+  description: "Source rows with a six-character period field, customer identifier, and consumption value. The snapshot is unique on the composite (Date, CustomerID) pair, which is not represented as a false single-column Wren primary key."

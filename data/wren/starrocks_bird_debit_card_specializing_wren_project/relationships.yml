@@ -1,0 +1,33 @@
+relationships:
+- name: transactions_1k_to_customers
+  models:
+  - transactions_1k
+  - customers
+  join_type: MANY_TO_ONE
+  condition: transactions_1k.CustomerID = customers.CustomerID
+  properties:
+    description: "All 1,000 inspected transaction rows matched one snapshot-unique customer identifier; the orphan count was zero."
+- name: transactions_1k_to_gasstations
+  models:
+  - transactions_1k
+  - gasstations
+  join_type: MANY_TO_ONE
+  condition: transactions_1k.GasStationID = gasstations.GasStationID
+  properties:
+    description: "All 1,000 inspected transaction rows matched one snapshot-unique gas-station identifier; the orphan count was zero."
+- name: transactions_1k_to_products
+  models:
+  - transactions_1k
+  - products
+  join_type: MANY_TO_ONE
+  condition: transactions_1k.ProductID = products.ProductID
+  properties:
+    description: "All 1,000 inspected transaction rows matched one snapshot-unique product identifier; the orphan count was zero."
+- name: yearmonth_to_customers
+  models:
+  - yearmonth
+  - customers
+  join_type: MANY_TO_ONE
+  condition: yearmonth.CustomerID = customers.CustomerID
+  properties:
+    description: "All 383,282 inspected yearmonth rows matched one snapshot-unique customer identifier; the orphan count was zero."

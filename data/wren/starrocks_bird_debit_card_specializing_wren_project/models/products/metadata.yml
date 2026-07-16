@@ -1,0 +1,23 @@
+name: products
+table_reference:
+  catalog: default_catalog
+  schema: bird_debit_card_specializing
+  table: products
+columns:
+- name: ProductID
+  type: BIGINT
+  is_calculated: false
+  not_null: true
+  is_primary_key: true
+  properties:
+    description: "Source product identifier; non-null and unique across the inspected snapshot. StarRocks DUPLICATE KEY does not enforce this uniqueness."
+- name: Description
+  type: VARCHAR(255)
+  is_calculated: false
+  not_null: false
+  properties:
+    description: "Source product description text. The inspected snapshot has 591 non-null rows and 529 distinct description values."
+cached: false
+properties:
+  description: "Product identifiers and source description text used by transaction records."
+primary_key: ProductID
