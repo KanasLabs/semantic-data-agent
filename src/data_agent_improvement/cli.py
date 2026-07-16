@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 from .feedback import record_feedback
 from .ingestion import ingest_eval_run, ingest_traces
+from .isolation import (
+    ISOLATION_ENVIRONMENT_ID_ENV,
+    ISOLATION_HMAC_ENV,
+    load_isolation_receipt,
+    verify_isolation_receipt,
+)
 from .models import (
     Actor,
     ActorType,
@@ -198,10 +205,7 @@ def main() -> None:
     execute_job_parser.add_argument("--eval-query-limit", type=int)
     execute_job_parser.add_argument("--eval-timeout-seconds", type=int, default=1800)
     execute_job_parser.add_argument("--execute", action="store_true")
-    execute_job_parser.add_argument(
-        "--external-isolation-confirmed",
-        action="store_true",
-    )
+    execute_job_parser.add_argument("--isolation-receipt", required=True)
 
     show_job_parser = subparsers.add_parser("show-job", parents=[common])
     show_job_parser.add_argument("--job", required=True)
@@ -213,6 +217,13 @@ def main() -> None:
 
     verify_job_parser = subparsers.add_parser("verify-job", parents=[common])
     verify_job_parser.add_argument("--job", required=True)
+
+    verify_isolation_parser = subparsers.add_parser(
+        "verify-isolation-receipt",
+        parents=[common],
+    )
+    verify_isolation_parser.add_argument("--job", required=True)
+    verify_isolation_parser.add_argument("--receipt", required=True)
 
     args = parser.parse_args()
     project_root, store = _resolve_roots(args)
@@ -448,6 +459,10 @@ def main() -> None:
             raise ValueError("execute-semantic-job requires the explicit --execute flag.")
         from .codex_executor import ContextBuilderSemanticExecutor
 
+        isolation_receipt = load_isolation_receipt(
+            path=Path(args.isolation_receipt),
+            project_root=project_root,
+        )
         executor = ContextBuilderSemanticExecutor(
             project_root=project_root,
             context_registry_root=Path(args.context_registry_root),
@@ -465,7 +480,11 @@ def main() -> None:
             store=store,
             job_id=args.job,
             executor=executor,
-            external_isolation_confirmed=args.external_isolation_confirmed,
+            isolation_receipt=isolation_receipt,
+            isolation_hmac_key=_required_environment(ISOLATION_HMAC_ENV),
+            isolation_environment_id=_required_environment(
+                ISOLATION_ENVIRONMENT_ID_ENV
+            ),
         )
         _print_json(result.to_dict(), pretty=True)
         return
@@ -484,6 +503,29 @@ def main() -> None:
         _print_json(
             {
                 "job_id": job.job_id,
+                "ok": error is None,
+                "error": error,
+            },
+            pretty=True,
+        )
+        return
+
+    if args.command == "verify-isolation-receipt":
+        job = store.get_job(args.job)
+        receipt = load_isolation_receipt(
+            path=Path(args.receipt),
+            project_root=project_root,
+        )
+        error = verify_isolation_receipt(
+            job=job,
+            receipt=receipt,
+            hmac_key=_required_environment(ISOLATION_HMAC_ENV),
+            environment_id=_required_environment(ISOLATION_ENVIRONMENT_ID_ENV),
+        )
+        _print_json(
+            {
+                "job_id": job.job_id,
+                "receipt_id": receipt.receipt_id,
                 "ok": error is None,
                 "error": error,
             },
@@ -512,6 +554,13 @@ def _enum_values(enum_type: type[Any]) -> list[str]:
 
 def _print_json(value: Any, *, pretty: bool) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2 if pretty else None))
+
+
+def _required_environment(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise ValueError(f"Required isolation environment variable is missing: {name}")
+    return value
 
 
 def _parse_expected_value(value: str | None) -> str | int | float | bool | None:

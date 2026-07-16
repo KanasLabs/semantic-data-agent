@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -36,6 +37,10 @@ from data_agent_improvement.models import (
     deterministic_case_id,
     sha256_text,
 )
+from data_agent_improvement.isolation import (
+    REQUIRED_ISOLATION_PROBES,
+    create_isolation_receipt,
+)
 from data_agent_improvement.si2 import (
     CandidateExecution,
     execute_semantic_job,
@@ -57,6 +62,8 @@ from data_subagent_context_builder.codex_runtime import CodexCliRunner, _codex_e
 TRACE_ID = "trace_" + "e" * 32
 FEEDBACK_ID = "feedback_" + "f" * 32
 CREATED_AT = "2026-07-16T00:00:00+00:00"
+ISOLATION_ENVIRONMENT_ID = "si2-test-environment"
+ISOLATION_HMAC_KEY = "test-isolation-key-material-32-bytes-minimum"
 
 
 class ImprovementSi2Test(unittest.TestCase):
@@ -69,7 +76,6 @@ class ImprovementSi2Test(unittest.TestCase):
                 eval_target_id=target_id,
                 base_candidate_id="candidate_" + "1" * 32,
                 base_snapshot_path=base_snapshot,
-                data_identity={"schema_fingerprint": "sha256:" + "2" * 64},
             )
             self.assertEqual(job.status, JobStatus.PREPARED)
             self.assertFalse(job.database_access)
@@ -93,7 +99,7 @@ class ImprovementSi2Test(unittest.TestCase):
             self.assertEqual(target_eval["expected_numeric_tolerance"], 0.001)
             self.assertIn("CNY", target_eval["expected_answer_contains"])
 
-    def test_execution_requires_external_isolation_confirmation(self):
+    def test_execution_rejects_receipt_from_another_environment(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
             job = prepare_semantic_job(
@@ -103,12 +109,14 @@ class ImprovementSi2Test(unittest.TestCase):
                 base_snapshot_path=base_snapshot,
             )
             executor = FakeExecutor()
-            with self.assertRaisesRegex(ValueError, "external filesystem/network isolation"):
+            with self.assertRaisesRegex(ValueError, "active execution environment"):
                 execute_semantic_job(
                     store=store,
                     job_id=job.job_id,
                     executor=executor,
-                    external_isolation_confirmed=False,
+                    isolation_receipt=_isolation_receipt(job),
+                    isolation_hmac_key=ISOLATION_HMAC_KEY,
+                    isolation_environment_id="different-environment",
                 )
             self.assertFalse(executor.called)
             self.assertEqual(store.get_job(job.job_id).status, JobStatus.PREPARED)
@@ -127,12 +135,16 @@ class ImprovementSi2Test(unittest.TestCase):
                 store=store,
                 job_id=job.job_id,
                 executor=executor,
-                external_isolation_confirmed=True,
+                **_isolation_arguments(job),
             )
             self.assertEqual(result.status, CandidateResultStatus.PASS)
             self.assertEqual(store.get_job(job.job_id).status, JobStatus.REVIEW_REQUIRED)
             self.assertTrue(executor.called)
             self.assertIn("Do not approve, publish, merge, deploy", executor.instruction)
+            self.assertEqual(
+                store.get_isolation_receipt(job.job_id).job_id,
+                job.job_id,
+            )
 
     def test_evidence_tampering_is_inconclusive_and_skips_executor(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -150,7 +162,7 @@ class ImprovementSi2Test(unittest.TestCase):
                 store=store,
                 job_id=job.job_id,
                 executor=executor,
-                external_isolation_confirmed=True,
+                **_isolation_arguments(job),
             )
             self.assertEqual(result.status, CandidateResultStatus.INCONCLUSIVE)
             self.assertFalse(executor.called)
@@ -173,9 +185,92 @@ class ImprovementSi2Test(unittest.TestCase):
                 store=store,
                 job_id=job.job_id,
                 executor=FakeExecutor(),
-                external_isolation_confirmed=True,
+                **_isolation_arguments(job),
             )
             self.assertEqual(result.status, CandidateResultStatus.EVAL_TARGET_INVALID)
+
+    def test_execution_rejects_tampered_isolation_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "7" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            receipt = replace(_isolation_receipt(job), backend="tampered-backend")
+            executor = FakeExecutor()
+            with self.assertRaisesRegex(ValueError, "signature is invalid"):
+                execute_semantic_job(
+                    store=store,
+                    job_id=job.job_id,
+                    executor=executor,
+                    isolation_receipt=receipt,
+                    isolation_hmac_key=ISOLATION_HMAC_KEY,
+                    isolation_environment_id=ISOLATION_ENVIRONMENT_ID,
+                )
+            self.assertFalse(executor.called)
+            self.assertEqual(store.get_job(job.job_id).status, JobStatus.PREPARED)
+
+    def test_execution_rejects_expired_isolation_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "8" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            receipt = create_isolation_receipt(
+                job=job,
+                environment_id=ISOLATION_ENVIRONMENT_ID,
+                issuer="test-external-runner",
+                backend="test-process-sandbox",
+                hmac_key=ISOLATION_HMAC_KEY,
+                probes=_passing_isolation_probes(),
+                issued_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+                ttl=timedelta(minutes=10),
+            )
+            with self.assertRaisesRegex(ValueError, "has expired"):
+                execute_semantic_job(
+                    store=store,
+                    job_id=job.job_id,
+                    executor=FakeExecutor(),
+                    isolation_receipt=receipt,
+                    isolation_hmac_key=ISOLATION_HMAC_KEY,
+                    isolation_environment_id=ISOLATION_ENVIRONMENT_ID,
+                )
+
+    def test_execution_rejects_failed_isolation_probe(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "9" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            probes = _passing_isolation_probes()
+            probes["outside_workspace_read_denied"] = False
+            receipt = create_isolation_receipt(
+                job=job,
+                environment_id=ISOLATION_ENVIRONMENT_ID,
+                issuer="test-external-runner",
+                backend="test-process-sandbox",
+                hmac_key=ISOLATION_HMAC_KEY,
+                probes=probes,
+            )
+            executor = FakeExecutor()
+            with self.assertRaisesRegex(ValueError, "outside_workspace_read_denied"):
+                execute_semantic_job(
+                    store=store,
+                    job_id=job.job_id,
+                    executor=executor,
+                    isolation_receipt=receipt,
+                    isolation_hmac_key=ISOLATION_HMAC_KEY,
+                    isolation_environment_id=ISOLATION_ENVIRONMENT_ID,
+                )
+            self.assertFalse(executor.called)
 
     def test_codex_environment_excludes_provider_and_database_secrets(self):
         with patch.dict(
@@ -185,6 +280,8 @@ class ImprovementSi2Test(unittest.TestCase):
                 "USERPROFILE": "user",
                 "DEEPSEEK_API_KEY": "secret",
                 "CONTEXT_BUILDER_STARROCKS_PASSWORD": "db-secret",
+                "DATA_AGENT_ISOLATION_HMAC_KEY": "isolation-secret",
+                "DATA_AGENT_ISOLATION_ENVIRONMENT_ID": "isolation-environment",
             },
             clear=True,
         ):
@@ -192,6 +289,8 @@ class ImprovementSi2Test(unittest.TestCase):
         self.assertEqual(environment["PATH"], "tools")
         self.assertNotIn("DEEPSEEK_API_KEY", environment)
         self.assertNotIn("CONTEXT_BUILDER_STARROCKS_PASSWORD", environment)
+        self.assertNotIn("DATA_AGENT_ISOLATION_HMAC_KEY", environment)
+        self.assertNotIn("DATA_AGENT_ISOLATION_ENVIRONMENT_ID", environment)
 
     def test_hardened_runner_uses_verified_noninteractive_flags(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -234,10 +333,37 @@ class FakeExecutor:
         )
 
 
+def _isolation_receipt(job):
+    return create_isolation_receipt(
+        job=job,
+        environment_id=ISOLATION_ENVIRONMENT_ID,
+        issuer="test-external-runner",
+        backend="test-process-sandbox",
+        hmac_key=ISOLATION_HMAC_KEY,
+        probes=_passing_isolation_probes(),
+    )
+
+
+def _isolation_arguments(job):
+    return {
+        "isolation_receipt": _isolation_receipt(job),
+        "isolation_hmac_key": ISOLATION_HMAC_KEY,
+        "isolation_environment_id": ISOLATION_ENVIRONMENT_ID,
+    }
+
+
+def _passing_isolation_probes():
+    return {name: True for name in REQUIRED_ISOLATION_PROBES}
+
+
 def _frozen_target(root: Path) -> tuple[ImprovementStore, str, Path]:
     store = ImprovementStore(root / "registry")
     base_snapshot = root / "base_wren"
     (base_snapshot / "models").mkdir(parents=True)
+    (base_snapshot / "models" / "orders.yml").write_text(
+        "name: orders\n",
+        encoding="utf-8",
+    )
     feedback = FeedbackRecord(
         schema_version=1,
         feedback_id=FEEDBACK_ID,

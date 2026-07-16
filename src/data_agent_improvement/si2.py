@@ -9,11 +9,13 @@ from typing import Any, Protocol
 
 from data_subagent.trace_identity import fingerprint_wren_project
 
+from .isolation import verify_isolation_receipt
 from .models import (
     BoundedCodexTask,
     CandidateResultStatus,
     EvalTargetStatus,
     ImprovementJobResult,
+    IsolationReceipt,
     JobStatus,
     JobTargetType,
     new_record_id,
@@ -84,6 +86,8 @@ def prepare_semantic_job(
         resolved_data_identity["schema_fingerprint"] = fingerprint_wren_project(
             resolved_base
         )
+    if not resolved_data_identity.get("schema_fingerprint"):
+        raise ValueError("SI2 requires a fingerprintable Wren base snapshot.")
     resolved_data_identity.setdefault("snapshot_id", None)
     task = BoundedCodexTask(
         schema_version=1,
@@ -120,15 +124,21 @@ def execute_semantic_job(
     store: ImprovementStore,
     job_id: str,
     executor: SemanticCandidateExecutor,
-    external_isolation_confirmed: bool,
+    isolation_receipt: IsolationReceipt,
+    isolation_hmac_key: str,
+    isolation_environment_id: str,
 ) -> ImprovementJobResult:
-    if not external_isolation_confirmed:
-        raise ValueError(
-            "SI2 execution requires explicit confirmation of external filesystem/network isolation."
-        )
     job = store.get_job(job_id)
     if job.status != JobStatus.PREPARED:
         raise ValueError(f"Job {job_id} is {job.status.value}, not PREPARED.")
+    isolation_error = verify_isolation_receipt(
+        job=job,
+        receipt=isolation_receipt,
+        hmac_key=isolation_hmac_key,
+        environment_id=isolation_environment_id,
+    )
+    if isolation_error:
+        raise ValueError(f"SI2 isolation receipt rejected: {isolation_error}")
     integrity_error = verify_job_integrity(store=store, job=job)
     if integrity_error:
         return _finish_without_execution(
@@ -140,6 +150,7 @@ def execute_semantic_job(
     target = store.get_eval_target(job.eval_target_id)
     finding = store.get_finding(job.finding_id)
     require_finding_authority(store, finding)
+    store.create_isolation_receipt(isolation_receipt)
     running = replace(job, status=JobStatus.RUNNING)
     store.replace_job(running, expected_status=JobStatus.PREPARED)
     instruction = build_semantic_job_instruction(store=store, job=running)

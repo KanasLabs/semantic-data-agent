@@ -768,6 +768,78 @@ class BoundedCodexTask:
 
 
 @dataclass(frozen=True)
+class IsolationReceipt:
+    schema_version: int
+    receipt_id: str
+    job_id: str
+    job_contract_sha256: str
+    eval_target_sha256: str
+    evidence_manifest_sha256: str
+    schema_fingerprint: str
+    environment_id: str
+    issuer: str
+    backend: str
+    tool_network_policy: str
+    provider_network_policy: str
+    writable_root: str
+    probes: dict[str, bool]
+    issued_at: str
+    expires_at: str
+    signature: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != 1:
+            raise ValueError("IsolationReceipt schema_version must be 1.")
+        validate_identifier("receipt_id", self.receipt_id, "isolation", 32)
+        validate_identifier("job_id", self.job_id, "job", 32)
+        validate_sha256("job_contract_sha256", self.job_contract_sha256)
+        validate_sha256("eval_target_sha256", self.eval_target_sha256)
+        validate_sha256("evidence_manifest_sha256", self.evidence_manifest_sha256)
+        validate_sha256("schema_fingerprint", self.schema_fingerprint)
+        _require_text("environment_id", self.environment_id)
+        _require_text("isolation issuer", self.issuer)
+        _require_text("isolation backend", self.backend)
+        _require_text("writable_root", self.writable_root)
+        if self.tool_network_policy != "DENY":
+            raise ValueError("IsolationReceipt tool_network_policy must be DENY.")
+        if self.provider_network_policy != "CONTROL_PLANE_ONLY":
+            raise ValueError(
+                "IsolationReceipt provider_network_policy must be CONTROL_PLANE_ONLY."
+            )
+        if not self.probes or any(type(value) is not bool for value in self.probes.values()):
+            raise ValueError("IsolationReceipt probes must be a non-empty boolean map.")
+        _validate_timestamp(self.issued_at)
+        _validate_timestamp(self.expires_at)
+        if not re.fullmatch(r"hmac-sha256:[0-9a-f]{64}", self.signature):
+            raise ValueError("IsolationReceipt signature must be an HMAC-SHA256 value.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return _json_value(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "IsolationReceipt":
+        return cls(
+            schema_version=int(data["schema_version"]),
+            receipt_id=str(data["receipt_id"]),
+            job_id=str(data["job_id"]),
+            job_contract_sha256=str(data["job_contract_sha256"]),
+            eval_target_sha256=str(data["eval_target_sha256"]),
+            evidence_manifest_sha256=str(data["evidence_manifest_sha256"]),
+            schema_fingerprint=str(data["schema_fingerprint"]),
+            environment_id=str(data["environment_id"]),
+            issuer=str(data["issuer"]),
+            backend=str(data["backend"]),
+            tool_network_policy=str(data["tool_network_policy"]),
+            provider_network_policy=str(data["provider_network_policy"]),
+            writable_root=str(data["writable_root"]),
+            probes=dict(data.get("probes") or {}),
+            issued_at=str(data["issued_at"]),
+            expires_at=str(data["expires_at"]),
+            signature=str(data["signature"]),
+        )
+
+
+@dataclass(frozen=True)
 class ImprovementJobResult:
     schema_version: int
     job_id: str
@@ -812,7 +884,7 @@ def new_feedback_id() -> str:
 
 
 def new_record_id(prefix: str) -> str:
-    if prefix not in {"authority", "finding", "evaltarget", "job"}:
+    if prefix not in {"authority", "finding", "evaltarget", "isolation", "job"}:
         raise ValueError(f"Unsupported record prefix: {prefix!r}")
     return f"{prefix}_{uuid.uuid4().hex}"
 

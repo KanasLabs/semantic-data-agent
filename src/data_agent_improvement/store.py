@@ -18,6 +18,7 @@ from .models import (
     FindingStatus,
     GroupedFinding,
     ImprovementJobResult,
+    IsolationReceipt,
     JobStatus,
     TriageStatus,
     validate_identifier,
@@ -252,6 +253,20 @@ class ImprovementStore:
     def get_job_result(self, job_id: str) -> ImprovementJobResult:
         return ImprovementJobResult.from_dict(
             self._read_json(self.job_dir(job_id) / "result.json")
+        )
+
+    def create_isolation_receipt(self, receipt: IsolationReceipt) -> Path:
+        path = self.job_dir(receipt.job_id) / "control" / "isolation_receipt.json"
+        if path.exists():
+            raise ImmutableRecordError(
+                f"Isolation receipt already exists: {receipt.job_id}"
+            )
+        self._write_json(path, receipt.to_dict())
+        return path
+
+    def get_isolation_receipt(self, job_id: str) -> IsolationReceipt:
+        return IsolationReceipt.from_dict(
+            self._read_json(self.job_dir(job_id) / "control" / "isolation_receipt.json")
         )
 
     def write_job_artifact(

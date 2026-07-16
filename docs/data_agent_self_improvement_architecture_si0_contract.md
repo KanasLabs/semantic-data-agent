@@ -1044,18 +1044,37 @@ Prepare and explicitly execute an SI2 semantic candidate job:
   --eval-target evaltarget_... --base-candidate-id candidate_... `
   --base-snapshot-path data\wren\base_project
 
+.\.venv-wren\python.exe -m data_agent_improvement.cli verify-isolation-receipt `
+  --job job_... --receipt data\tmp\si2_worker\isolation_receipt.json
+
 .\.venv-wren\python.exe -m data_agent_improvement.cli execute-semantic-job `
   --job job_... --context-registry-root data\context_registry `
   --wren-home data\wren\home --wren-bin .venv-wren\Scripts\wren.exe `
-  --execute --external-isolation-confirmed
+  --isolation-receipt data\tmp\si2_worker\isolation_receipt.json --execute
 ```
 
-Preparation never invokes Codex. Execution requires both explicit flags. The
-second flag is an external isolation attestation because the installed CLI can
-declare a no-network task and omit `--search`, but this implementation cannot
-prove host-level network denial or filesystem read allowlisting by itself. The
-external sandbox must expose only the candidate, sanitized evidence, required
-base snapshot/tooling, and authentication material that is safe for Codex.
+Preparation never invokes Codex. The external worker must inject
+`DATA_AGENT_ISOLATION_HMAC_KEY` and `DATA_AGENT_ISOLATION_ENVIRONMENT_ID`; an
+operator must not paste either value into a prompt or persist the HMAC key. The
+receipt is short-lived, HMAC-authenticated, and bound to the Job contract,
+frozen EvalTarget, evidence manifest, schema fingerprint, logical writable
+root, and active external environment ID.
+
+The receipt is not a checkbox. Its signed probe map must confirm process-tree
+isolation, child-policy inheritance, candidate-only writes, read-only evidence
+and base snapshot mounts, denied reads/writes outside the workspace, denied
+tool network, and minimized credentials. The Codex provider control plane may
+remain reachable, but model-generated tools receive no network access. The
+controller verifies and stores the immutable receipt before changing the Job
+from `PREPARED` to `RUNNING`; the HMAC key and environment ID are excluded from
+the sanitized Codex child environment.
+
+The current Windows host cannot itself issue this receipt. Local
+`codex-cli 0.144.1` exposes `--sandbox-state-readable-root` and
+`--sandbox-state-disable-network`, but a strict read-allowlist probe reports
+that restricted read-only access requires the elevated Windows sandbox backend.
+Until a CI/container/VM or elevated backend performs the probes and signs the
+receipt, real SI2 Codex execution remains blocked by design.
 
 ## 18. Report Contract
 
@@ -1115,6 +1134,9 @@ SI0 tests cover:
 - legacy trace compatibility
 - invalid JSON file/line reporting
 - no network, database, Wren, DeepSeek, or Codex process
+- invalid, expired, tampered, or wrong-environment isolation receipts cannot
+  start an executor
+- the isolation HMAC key and environment ID are not inherited by Codex
 - feedback SQL is never executed
 - result rows are not copied into cases
 - evidence bundles redact/minimize raw trace payloads
@@ -1296,11 +1318,13 @@ from a frozen target. A real Codex candidate execution is still pending.
 SI2 implementation details:
 
 - `si2.py` owns evidence packaging, target/manifest integrity checks, job state,
-  explicit isolation confirmation, and result mapping.
+  signed isolation-receipt enforcement, and result mapping.
+- `isolation.py` owns Job binding, required probe policy, HMAC verification,
+  environment matching, and receipt expiry.
 - `codex_executor.py` adapts the bounded task to `revise_candidate`.
 - the Codex process uses an ephemeral session, ignores user config, requests no
   approvals, omits web search, uses a JSON output schema, and receives a
-  sanitized environment without DeepSeek or database credentials.
+  sanitized environment without DeepSeek, database, or isolation credentials.
 - the outer Context Builder creates the candidate, runs Wren validation,
   generated smoke, repeated frozen target evals, and configured regressions.
 - frozen numeric result contracts are enforced by the EvalRunner with their

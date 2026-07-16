@@ -383,7 +383,7 @@ SI2 now provides:
 - frozen target hash verification before and after candidate execution
 - separate `EVAL_TARGET_INVALID` and evidence/infrastructure `INCONCLUSIVE`
   outcomes
-- an explicit external isolation gate before any executor call
+- a signed, short-lived external isolation receipt gate before any executor call
 - a replaceable `SemanticCandidateExecutor` protocol
 - a Context Builder adapter that creates a new candidate through
   `revise_candidate`, repeats the frozen target suite, runs smoke/regression,
@@ -408,15 +408,15 @@ Codex execution hardening:
   omits `--search`, and uses `approval_policy=never`
 - the child environment is allowlisted and excludes DeepSeek keys and database
   passwords
-- CLI execution requires both `--execute` and
-  `--external-isolation-confirmed`
+- CLI execution requires `--execute`, a verified `--isolation-receipt`, and
+  external runner-injected HMAC/environment identity
 - the registered base candidate path must match the prepared SI2 base snapshot
 - target result tolerance is enforced by the EvalRunner; required semantic
   filters use the existing SQL-fragment fallback in the generated target suite
 
-The external isolation acknowledgement is not merely informational. The host
-sandbox must prevent Codex from reading unrelated repository secrets and must
-enforce network policy; `workspace-write` and omission of `--search` do not by
+The external isolation receipt is not merely informational. The host sandbox
+must prevent Codex from reading unrelated repository secrets and must enforce
+tool network policy; `workspace-write` and omission of `--search` do not by
 themselves prove filesystem read allowlisting or host-level network denial.
 
 Automated execution verification uses only fake executors; no real Codex task
@@ -474,8 +474,44 @@ The Job stayed `PREPARED`, created no Job result, and the Context Registry still
 contained only the registered base candidate with zero revisions. Targeted SI2
 tests remained `7/7`; the full suite remained `130/130`.
 
+### SI2 external isolation receipt gate
+
+The old `--external-isolation-confirmed` boolean was removed after local
+capability testing showed that an operator acknowledgement cannot prove the
+process boundary. SI2 now requires an `IsolationReceipt` that is:
+
+- bound to the immutable Job execution contract, frozen target hash, evidence
+  manifest hash, Wren schema fingerprint, and logical writable root
+- bound to the active `DATA_AGENT_ISOLATION_ENVIRONMENT_ID`
+- HMAC-SHA256 authenticated with a key that is never persisted or inherited by
+  the Codex child
+- valid for no more than 30 minutes
+- explicit that all required filesystem, child-process, network, and credential
+  probes passed
+
+`verify-isolation-receipt` provides a read-only preflight. On accepted
+execution, the controller stores the receipt immutably under the Job control
+directory before entering `RUNNING`. Invalid signatures, expired receipts,
+wrong environment IDs, failed probes, or changed Job/evidence/schema hashes
+leave the Job `PREPARED` and never call the executor.
+
+Local capability verification used `codex-cli 0.144.1`. The CLI supports
+`codex sandbox`, `--sandbox-state-json`, `--sandbox-state-readable-root`, and
+`--sandbox-state-disable-network`. However, a strict read-allowlist probe on the
+current Windows host returned:
+
+```text
+Restricted read-only access requires the elevated Windows sandbox backend
+```
+
+Therefore this machine cannot honestly issue a passing receipt yet. A future
+external CI/container/VM worker or elevated Windows backend must run the probes,
+sign the receipt, and inject its environment ID. No real Codex execution was
+attempted. Verification after this change: SI2 `10/10`, full suite `133/133`, and
+`git diff --check` passed.
+
 Real Codex execution still requires a configured Wren/eval environment, the
-`--execute` gate, and explicit operator isolation confirmation. SI2 still cannot
+`--execute` gate, and a valid external isolation receipt. SI2 still cannot
 approve or publish. SI3 engineering worktrees and SI4 release monitoring remain
 unimplemented.
 
