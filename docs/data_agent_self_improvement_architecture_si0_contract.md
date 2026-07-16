@@ -857,6 +857,20 @@ The implemented SI2 executor boundary is a replaceable Python `Protocol`.
 a future Codex SDK adapter can implement the same protocol without changing the
 job controller.
 
+Explicit implementation decision as of 2026-07-16:
+
+```text
+current: Codex CLI adapter inside the Docker/CI isolation worker
+later:   verified Codex SDK adapter inside the same isolation worker
+stable:  Job, receipt, evidence, eval, review, and publication contracts
+```
+
+CLI-first is the approved MVP path, not an unsafe fallback. It does not permit
+direct host execution or bypass the signed isolation receipt. A future SDK may
+replace process invocation, streaming, and structured-result plumbing only; it
+must not weaken filesystem/network isolation, frozen-target ownership, outer
+evals, human review, or publication controls.
+
 The installed CLI was directly verified to support `workspace-write`,
 `--ephemeral`, `--ignore-user-config`, `--output-schema`, JSONL output, and
 non-interactive execution. The OpenAI Codex manual helper was attempted inside

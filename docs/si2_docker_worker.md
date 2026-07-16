@@ -26,6 +26,25 @@ Docker network and reaches `api.openai.com` only through the bundled Squid ACL
 proxy; direct internet and non-OpenAI proxy destinations must fail before a
 receipt is signed.
 
+## CLI-First, SDK-Later Decision
+
+The current worker intentionally installs and invokes the pinned Codex CLI:
+
+```text
+@openai/codex 0.144.1
+codex exec --ephemeral --ignore-user-config --output-schema ...
+```
+
+This is the approved MVP execution adapter. The future SDK migration is an
+adapter replacement, not an architecture rewrite. `SemanticCandidateExecutor`
+remains the boundary, so Docker mounts, proxy restrictions, isolation probes,
+signed receipts, frozen eval targets, outer Wren/eval gates, and human review
+remain unchanged.
+
+The local host CLI is not authorized as a shortcut for a Docker receipt. Until
+the container image and probes pass, real SI2 execution remains blocked even
+though `codex.exe` is installed on Windows.
+
 ## Build And Start
 
 The images require Docker Hub and npm access during build:

@@ -532,6 +532,13 @@ only the copied candidate read/write, minimized evidence read-only, and the
 final-response schema read-only. It does not mount the repository, base
 snapshot, Registry controls, database, Wren home, or host credentials.
 
+The execution-surface decision is now explicit: SI2 uses the pinned
+`codex exec` CLI inside the Docker/CI worker for the MVP. A future verified
+Codex SDK adapter may replace only the invocation/streaming layer behind
+`SemanticCandidateExecutor`. The Docker boundary, signed receipt, frozen target,
+outer evals, review state, and publication controls do not change. The installed
+Windows CLI is not allowed to bypass a missing Docker receipt.
+
 The container uses a read-only root filesystem, UID 10001, dropped Linux
 capabilities, `no-new-privileges`, PID/memory/CPU limits, an ephemeral tmpfs,
 Codex `workspace-write`, `sandbox_workspace_write.network_access=false`,
