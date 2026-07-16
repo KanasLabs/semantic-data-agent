@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
+from data_subagent.trace_identity import fingerprint_wren_project
+
 from .models import (
     BoundedCodexTask,
     CandidateResultStatus,
@@ -77,6 +79,12 @@ def prepare_semantic_job(
     manifest_path = evidence_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest_hash = _canonical_sha256(manifest)
+    resolved_data_identity = dict(data_identity or {})
+    if not resolved_data_identity.get("schema_fingerprint"):
+        resolved_data_identity["schema_fingerprint"] = fingerprint_wren_project(
+            resolved_base
+        )
+    resolved_data_identity.setdefault("snapshot_id", None)
     task = BoundedCodexTask(
         schema_version=1,
         job_id=job_id,
@@ -88,7 +96,7 @@ def prepare_semantic_job(
         base_candidate_id=base_candidate_id,
         read_only_roots=[str(evidence_dir.resolve()), str(resolved_base)],
         evidence_manifest_sha256=manifest_hash,
-        data_identity=dict(data_identity or {}),
+        data_identity=resolved_data_identity,
         writable_root="context_builder_candidate_workspace",
         allowed_paths=["models/**", "relationships.yml", "knowledge/**", "onboarding/**"],
         forbidden_paths=["data/context_registry/**", "src/**", ".git/**"],

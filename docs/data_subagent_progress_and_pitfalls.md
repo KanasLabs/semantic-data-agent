@@ -419,7 +419,8 @@ sandbox must prevent Codex from reading unrelated repository secrets and must
 enforce network policy; `workspace-write` and omission of `--search` do not by
 themselves prove filesystem read allowlisting or host-level network denial.
 
-Verification uses only fake executors; no real Codex task was launched:
+Automated execution verification uses only fake executors; no real Codex task
+was launched:
 
 ```text
 SI0/SI1 targeted tests: 32 passed
@@ -429,10 +430,54 @@ Context Builder Codex/revision regressions: passed
 git diff --check: passed
 ```
 
-A real SI2 acceptance still requires a frozen target, registered base Context
-candidate, configured Wren/eval environment, and explicit operator isolation
-confirmation. SI2 still cannot approve or publish. SI3 engineering worktrees
-and SI4 release monitoring remain unimplemented.
+A real prompt-only SI2 acceptance was then completed without `--execute`. The
+fixture used a real failed revenue answer and a scoped business correction:
+
+```text
+trace: trace_295ceda0754b4129b09f8259835f8d82
+observed answer: $1,131.70
+observed filter: status != 'cancelled'
+business truth: only completed orders count as realized revenue
+expected result: 721.80 CNY
+```
+
+The frozen control records were:
+
+```text
+base candidate: candidate_2d8fa11494c24f5785f0a8e33739a598
+feedback: feedback_8f043b062f9c4ce7ace4821cf043ff19
+case: case_769252a510786f9091ef1adb
+authority: authority_b7956645731f47d99b4379edf0a064ac
+finding: finding_81aef970aa8f4856a1791fb568df7f67
+eval target: evaltarget_359988cb167348e4a04eb25903ff1872
+frozen hash: sha256:013bb12ca979b207d5c10177b1fb832ffb6b2cefbe783e0da23b1c5d5b469077
+```
+
+The first prepared Job exposed that an omitted caller-supplied
+`schema_fingerprint` remained null. `prepare_semantic_job` now derives the
+fingerprint from the allowlisted Wren semantic files in the registered base
+snapshot. The CLI also provides a read-only `verify-job` command. The final
+prompt-only Job was:
+
+```text
+job: job_ecc460cc20614938991b9c2c15698d14
+status: PREPARED
+schema fingerprint: sha256:4eaf1703d3ff3b73e135f2e9255f4b3babc468a2ac21a32731c05d579a25abbc
+evidence manifest: sha256:65b9bec587524e819873be1576c35d6b5bac29b0276d1ab328dc43780ec10ff2
+verify-job: ok
+```
+
+The generated target eval preserves expected value `721.8`, tolerance `0.001`,
+required unit `CNY`, forbidden unit `$`, and required completed-status filter.
+The evidence contains no raw trace payload, result preview, or result-row field.
+The Job stayed `PREPARED`, created no Job result, and the Context Registry still
+contained only the registered base candidate with zero revisions. Targeted SI2
+tests remained `7/7`; the full suite remained `130/130`.
+
+Real Codex execution still requires a configured Wren/eval environment, the
+`--execute` gate, and explicit operator isolation confirmation. SI2 still cannot
+approve or publish. SI3 engineering worktrees and SI4 release monitoring remain
+unimplemented.
 
 ### Main Agent orchestration architecture note
 

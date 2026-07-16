@@ -74,6 +74,10 @@ class ImprovementSi2Test(unittest.TestCase):
             self.assertEqual(job.status, JobStatus.PREPARED)
             self.assertFalse(job.database_access)
             self.assertFalse(job.network_access)
+            self.assertRegex(
+                job.data_identity.get("schema_fingerprint") or "",
+                r"^sha256:[0-9a-f]{64}$",
+            )
             self.assertIsNone(verify_job_integrity(store=store, job=job))
             evidence_dir = store.job_dir(job.job_id) / "evidence"
             combined = "\n".join(

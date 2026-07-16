@@ -24,7 +24,7 @@ from .models import (
 )
 from .report import render_triage_report
 from .store import ImprovementStore, new_report_id
-from .si2 import execute_semantic_job, prepare_semantic_job
+from .si2 import execute_semantic_job, prepare_semantic_job, verify_job_integrity
 from .triage import (
     approve_eval_target,
     create_eval_target,
@@ -210,6 +210,9 @@ def main() -> None:
     show_job_result_parser = subparsers.add_parser("show-job-result", parents=[common])
     show_job_result_parser.add_argument("--job", required=True)
     show_job_result_parser.add_argument("--pretty", action="store_true")
+
+    verify_job_parser = subparsers.add_parser("verify-job", parents=[common])
+    verify_job_parser.add_argument("--job", required=True)
 
     args = parser.parse_args()
     project_root, store = _resolve_roots(args)
@@ -473,6 +476,19 @@ def main() -> None:
 
     if args.command == "show-job-result":
         _print_json(store.get_job_result(args.job).to_dict(), pretty=args.pretty)
+        return
+
+    if args.command == "verify-job":
+        job = store.get_job(args.job)
+        error = verify_job_integrity(store=store, job=job)
+        _print_json(
+            {
+                "job_id": job.job_id,
+                "ok": error is None,
+                "error": error,
+            },
+            pretty=True,
+        )
 
 
 def _resolve_roots(args: argparse.Namespace) -> tuple[Path, ImprovementStore]:
