@@ -47,11 +47,18 @@ though `codex.exe` is installed on Windows.
 
 ## Build And Start
 
-The images require Docker Hub and npm access during build:
+The images require a reachable OCI registry, Debian mirror, and npm registry.
+The default values use upstream services. The verified mainland-China fallback
+on 2026-07-17 was:
 
 ```powershell
+$env:WORKER_BASE_IMAGE='docker.1panel.live/library/node:22-bookworm-slim'
+$env:PROXY_BASE_IMAGE='docker.1panel.live/library/debian:bookworm-slim'
+$env:DEBIAN_MIRROR_HOST='mirrors.aliyun.com'
+$env:NPM_REGISTRY='https://registry.npmmirror.com'
+
 docker compose -f infra\si2_codex_worker\docker-compose.yml --profile build build
-docker compose -f infra\si2_codex_worker\docker-compose.yml up -d egress-proxy
+docker compose -f infra\si2_codex_worker\docker-compose.yml up -d --no-build egress-proxy
 ```
 
 Runtime execution resolves the worker tag to Docker's immutable `sha256` image
@@ -139,9 +146,44 @@ must still match. Otherwise the Job remains `PREPARED` and Codex is not called.
 
 ## Current Local Status
 
-Docker Desktop is running Linux containers with cgroup v2. The first worker
-image build on 2026-07-16 failed before any image layer ran because this host
-could not reach `registry-1.docker.io:443`; retrying outside the workspace
-sandbox produced the same timeout. No Codex process or OpenAI request was
-started. Build and live probes therefore remain pending on a network-enabled CI
-runner or restored Docker registry access.
+Docker Desktop is running Linux containers with cgroup v2. Upstream Docker Hub
+remained unreachable, but the verified fallback registries above successfully
+built both images on 2026-07-17:
+
+```text
+worker: sha256:63339471636cb03da0ff021a5ceb4c842b8f2171bad9c492419215c8a84cdc95
+proxy:  sha256:f35b5ebec10bcc4edd08643e8577b48b7624d7818e2d99f1e43ec6d2d59d9782
+Codex CLI: 0.144.1
+worker UID: 10001
+proxy user: proxy
+```
+
+The first proxy start failed because Squid's optional ICMP pinger cannot run
+with all capabilities dropped. `pinger_enable off` fixed it without adding a
+capability. The final proxy stays up on both expected networks.
+
+Live no-model results:
+
+```text
+candidate/evidence/rootfs mount probe: passed
+Codex reachable-canary tool-network denial: passed
+Codex dummy API-key child-environment exclusion: passed
+OpenAI-only proxy rejects non-OpenAI destinations: implemented
+OpenAI API control-plane reachability: failed
+isolation receipt: not issued
+real codex exec: not started
+```
+
+Docker's default seccomp profile blocks the user namespace required by Codex's
+Linux `bwrap` sandbox. The worker currently keeps UID 10001, dropped
+capabilities, read-only rootfs, `no-new-privileges`, restricted mounts and the
+internal network, while setting `seccomp=unconfined` so the inner Codex sandbox
+can start. A narrow custom seccomp profile is a future hardening task.
+
+After clearing an initially stale DNS result, Squid reached the correct
+Cloudflare address and returned `TCP_TUNNEL/200`, but the TLS handshake ended in
+`SSL_ERROR_SYSCALL`. This host has no WinHTTP, Windows Internet, or common local
+VPN proxy configured. The provider probe therefore correctly refused to sign a
+receipt. No API key was sent, no authenticated OpenAI request completed, and
+the prepared Job remains unexecuted. A working corporate/VPN/CI upstream route
+to `api.openai.com` is still required.

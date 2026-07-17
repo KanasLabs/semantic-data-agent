@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import hashlib
+import json
 import subprocess
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from data_agent_improvement.docker_worker import (
     resolve_docker_image_id,
     write_isolation_receipt,
     _docker_environment,
+    _probe_sandbox_state_json,
 )
 from data_agent_improvement.isolation import REQUIRED_ISOLATION_PROBES
 from data_agent_improvement.models import BoundedCodexTask, JobStatus, JobTargetType
@@ -71,12 +73,14 @@ class ImprovementDockerWorkerTest(unittest.TestCase):
             combined = "\n".join(args)
             self.assertIn("--read-only", args)
             self.assertIn("no-new-privileges:true", args)
+            self.assertIn("seccomp=unconfined", args)
             self.assertIn("ALL", args)
             self.assertIn("si2-provider-egress", args)
             self.assertIn("sandbox_workspace_write.network_access=false", args)
             self.assertIn("shell_environment_policy.inherit=none", args)
             self.assertIn("check_for_update_on_startup=false", args)
             self.assertIn(f"HTTPS_PROXY={HTTPS_PROXY}", args)
+            self.assertIn("CODEX_HOME=/tmp/codex-home", args)
             self.assertIn("--ignore-user-config", args)
             self.assertIn("--ignore-rules", args)
             self.assertIn("--ephemeral", args)
@@ -157,6 +161,11 @@ class ImprovementDockerWorkerTest(unittest.TestCase):
         self.assertNotIn("DEEPSEEK_API_KEY", environment)
         self.assertNotIn("CONTEXT_BUILDER_STARROCKS_PASSWORD", environment)
         self.assertNotIn("DATA_AGENT_ISOLATION_HMAC_KEY", environment)
+
+    def test_probe_sandbox_state_is_minimal_and_read_only(self):
+        state = json.loads(_probe_sandbox_state_json())
+        self.assertEqual(state["permissionProfile"], {})
+        self.assertEqual(state["sandboxCwd"], "file:///workspace")
 
     def test_probe_issues_receipt_bound_to_immutable_image(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

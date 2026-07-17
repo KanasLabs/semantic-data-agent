@@ -1,6 +1,6 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
@@ -521,6 +521,7 @@ Wren validation, target/smoke/regression evals, and the `REVIEW_REQUIRED` gate.
 src/data_agent_improvement/docker_worker.py
 infra/si2_codex_worker/Dockerfile
 infra/si2_codex_worker/Dockerfile.proxy
+infra/si2_codex_worker/worker-entrypoint.sh
 infra/si2_codex_worker/squid.conf
 infra/si2_codex_worker/docker-compose.yml
 docs/si2_docker_worker.md
@@ -556,19 +557,42 @@ before signing a receipt.
 Offline verification completed:
 
 ```text
-Docker/SI2 targeted tests: 17 passed
-full unit suite: 140 passed
+Docker/SI2 targeted tests: 18 passed
+full unit suite: 141 passed
 docker compose config: passed
 CLI prepare-docker-isolation help: passed
 git diff --check: passed
 ```
 
-Docker Desktop is available with Linux containers and cgroup v2. The first
-worker build failed before any layer executed because Docker could not reach
-`registry-1.docker.io:443`. Retrying outside the workspace sandbox produced the
-same timeout. Therefore the image, live probes, receipt, and real Codex execution
-remain pending on restored registry access or a network-enabled CI runner. No
-OpenAI request was made.
+Docker Desktop is available with Linux containers and cgroup v2. Direct Docker
+Hub access remained unavailable, but the following build fallback succeeded on
+2026-07-17:
+
+```text
+base images: docker.1panel.live/library/node and /debian
+Debian packages: mirrors.aliyun.com
+npm: registry.npmmirror.com
+worker image: sha256:63339471636cb03da0ff021a5ceb4c842b8f2171bad9c492419215c8a84cdc95
+proxy image: sha256:f35b5ebec10bcc4edd08643e8577b48b7624d7818e2d99f1e43ec6d2d59d9782
+Codex CLI: 0.144.1
+```
+
+The proxy initially exited because Squid's optional ICMP pinger is incompatible
+with `cap_drop: ALL`; disabling the pinger preserved the capability boundary and
+produced a stable proxy. Docker's default seccomp profile also blocked the user
+namespace required by Codex's Linux `bwrap` sandbox. The current compatibility
+setting is `seccomp=unconfined` around a non-root, capability-free, read-only,
+mount-restricted container; the inner Codex sandbox then started successfully.
+A narrow custom seccomp profile remains a hardening follow-up.
+
+Real no-model probes passed candidate/evidence filesystem policy, reachable
+canary network denial by `codex sandbox`, and dummy API-key exclusion from the
+child environment. The provider probe still failed: after DNS cache reset Squid
+established `TCP_TUNNEL/200` to the correct Cloudflare address, but TLS ended in
+`SSL_ERROR_SYSCALL`. This host has no configured system or common local VPN
+proxy. The receipt was correctly not issued, `codex exec` was not started, no
+API key was sent, and the real Job remains `PREPARED`. A corporate/VPN/CI route
+to `api.openai.com` is still required.
 
 Real Codex execution still requires built worker/proxy images, a configured
 Wren/eval environment, the `--execute` gate, and a valid Docker isolation

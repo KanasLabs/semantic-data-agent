@@ -192,6 +192,8 @@ class DockerCodexRunner:
             "ALL",
             "--security-opt",
             "no-new-privileges:true",
+            "--security-opt",
+            "seccomp=unconfined",
             "--pids-limit",
             str(self.config.pids_limit),
             "--memory",
@@ -475,16 +477,24 @@ def _probe_tool_network_and_credentials(*, config: DockerWorkerConfig) -> None:
                 "--network",
                 network_name,
                 "--read-only",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--security-opt",
+                "seccomp=unconfined",
                 "--tmpfs",
                 "/tmp:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001",
                 "--env",
                 "HOME=/tmp/home",
-                "--entrypoint",
-                "codex",
+                "--env",
+                "CODEX_HOME=/tmp/codex-home",
                 config.image_id,
                 "-c",
                 "sandbox_workspace_write.network_access=false",
                 "sandbox",
+                "--sandbox-state-json",
+                _probe_sandbox_state_json(),
+                "--sandbox-state-readable-root",
+                "/",
                 "--sandbox-state-disable-network",
                 "--",
                 "curl",
@@ -500,7 +510,10 @@ def _probe_tool_network_and_credentials(*, config: DockerWorkerConfig) -> None:
         if denied.returncode == 0 or not any(
             marker in denial_text for marker in _NETWORK_ERROR_MARKERS
         ):
-            raise RuntimeError("Codex tool-network denial probe did not produce a verified denial.")
+            raise RuntimeError(
+                "Codex tool-network denial probe did not produce a verified denial: "
+                f"returncode={denied.returncode}, output={_bounded_output(denial_text)}"
+            )
         credentials = _run_quiet(
             [
                 config.docker_bin,
@@ -509,18 +522,26 @@ def _probe_tool_network_and_credentials(*, config: DockerWorkerConfig) -> None:
                 "--network",
                 "none",
                 "--read-only",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--security-opt",
+                "seccomp=unconfined",
                 "--tmpfs",
                 "/tmp:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001",
                 "--env",
                 "HOME=/tmp/home",
                 "--env",
+                "CODEX_HOME=/tmp/codex-home",
+                "--env",
                 "OPENAI_API_KEY=probe-only-secret",
-                "--entrypoint",
-                "codex",
                 config.image_id,
                 "-c",
                 "shell_environment_policy.inherit=none",
                 "sandbox",
+                "--sandbox-state-json",
+                _probe_sandbox_state_json(),
+                "--sandbox-state-readable-root",
+                "/",
                 "--",
                 "sh",
                 "-c",
@@ -529,7 +550,12 @@ def _probe_tool_network_and_credentials(*, config: DockerWorkerConfig) -> None:
             timeout_seconds=30,
         )
         if credentials.returncode != 0:
-            raise RuntimeError("Codex child credential-minimization probe failed.")
+            credential_output = f"{credentials.stdout}\n{credentials.stderr}".lower()
+            raise RuntimeError(
+                "Codex child credential-minimization probe failed: "
+                f"returncode={credentials.returncode}, "
+                f"output={_bounded_output(credential_output)}"
+            )
     finally:
         if server_created:
             _run_quiet(
@@ -592,7 +618,11 @@ def _probe_provider_egress(*, config: DockerWorkerConfig) -> None:
         timeout_seconds=30,
     )
     if openai.returncode != 0 or openai.stdout.strip() not in {"200", "401", "403", "429"}:
-        raise RuntimeError("Docker egress proxy cannot reach the OpenAI API control plane.")
+        openai_output = f"{openai.stdout}\n{openai.stderr}".lower()
+        raise RuntimeError(
+            "Docker egress proxy cannot reach the OpenAI API control plane: "
+            f"returncode={openai.returncode}, output={_bounded_output(openai_output)}"
+        )
     blocked = _run_quiet(
         [
             *common,
@@ -630,6 +660,21 @@ def _mount(source: Path, target: str, *, read_only: bool) -> str:
         raise ValueError("Docker bind-mount source paths must not contain commas.")
     mode = ",readonly" if read_only else ""
     return f"type=bind,source={source_text},target={target}{mode}"
+
+
+def _probe_sandbox_state_json() -> str:
+    return json.dumps(
+        {
+            "permissionProfile": {},
+            "sandboxCwd": "file:///workspace",
+        },
+        separators=(",", ":"),
+    )
+
+
+def _bounded_output(value: str, limit: int = 1000) -> str:
+    normalized = " ".join(value.split())
+    return normalized[:limit]
 
 
 def _require_mountable(path: Path, *, directory: bool) -> None:
