@@ -41,13 +41,15 @@ from data_agent_improvement.isolation import (
     REQUIRED_ISOLATION_PROBES,
     create_isolation_receipt,
 )
+from data_agent_improvement.codex_executor import _codex_runner_for_mode
 from data_agent_improvement.si2 import (
     CandidateExecution,
     execute_semantic_job,
+    execute_semantic_job_development,
     prepare_semantic_job,
     verify_job_integrity,
 )
-from data_agent_improvement.store import ImprovementStore
+from data_agent_improvement.store import ImprovementStore, RecordNotFoundError
 from data_agent_improvement.triage import (
     approve_eval_target,
     create_eval_target,
@@ -145,6 +147,32 @@ class ImprovementSi2Test(unittest.TestCase):
                 store.get_isolation_receipt(job.job_id).job_id,
                 job.job_id,
             )
+
+    def test_development_execution_keeps_formal_job_prepared(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "d" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            executor = FakeExecutor()
+            report = execute_semantic_job_development(
+                store=store,
+                job_id=job.job_id,
+                executor=executor,
+            )
+            self.assertTrue(report["development_only"])
+            self.assertFalse(report["formal_result_recorded"])
+            self.assertFalse(report["isolation_receipt_used"])
+            self.assertFalse(report["release_eligible"])
+            self.assertEqual(report["candidate_status"], CandidateResultStatus.PASS.value)
+            self.assertEqual(report["job_status_after"], JobStatus.PREPARED.value)
+            self.assertEqual(store.get_job(job.job_id).status, JobStatus.PREPARED)
+            self.assertIn("DEVELOPMENT_ONLY", executor.instruction)
+            with self.assertRaises(RecordNotFoundError):
+                store.get_job_result(job.job_id)
 
     def test_evidence_tampering_is_inconclusive_and_skips_executor(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -313,6 +341,24 @@ class ImprovementSi2Test(unittest.TestCase):
             self.assertIn("--ignore-user-config", result.args)
             self.assertIn("--output-schema", result.args)
             self.assertNotIn("--search", result.args)
+
+    def test_host_session_runner_loads_user_config_with_sanitized_environment(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            schema = root / "schema.json"
+            schema.write_text("{}\n", encoding="utf-8")
+            runner = _codex_runner_for_mode(
+                codex_bin="codex",
+                candidate_project_dir=root,
+                codex_model=None,
+                timeout_seconds=60,
+                output_schema_path=schema,
+                host_session_development=True,
+            )
+            self.assertFalse(runner.ignore_user_config)
+            self.assertTrue(runner.sanitized_environment)
+            self.assertTrue(runner.ephemeral)
+            self.assertEqual(runner.approval_policy, "never")
 
 
 class FakeExecutor:

@@ -46,6 +46,14 @@ class SemanticCandidateExecutor(Protocol):
         ...
 
 
+DEVELOPMENT_ONLY_WARNING = (
+    "DEVELOPMENT_ONLY host-session execution is not externally isolated, does not "
+    "create a formal SI2 JobResult, and cannot authorize approval or publication. "
+    "Release, CI, and Docker execution require an isolation receipt plus a dedicated "
+    "API key or CI secret."
+)
+
+
 def prepare_semantic_job(
     *,
     store: ImprovementStore,
@@ -117,6 +125,72 @@ def prepare_semantic_job(
     if not target_eval_path.is_file():
         raise RuntimeError("Target eval packaging did not produce its suite.")
     return task
+
+
+def execute_semantic_job_development(
+    *,
+    store: ImprovementStore,
+    job_id: str,
+    executor: SemanticCandidateExecutor,
+) -> dict[str, Any]:
+    job = store.get_job(job_id)
+    if job.status != JobStatus.PREPARED:
+        raise ValueError(f"Job {job_id} is {job.status.value}, not PREPARED.")
+    integrity_error = verify_job_integrity(store=store, job=job)
+    if integrity_error:
+        return _development_report(
+            job=job,
+            execution=CandidateExecution(
+                ok=False,
+                outcome=(
+                    "eval_target_invalid"
+                    if _integrity_status(integrity_error)
+                    == CandidateResultStatus.EVAL_TARGET_INVALID
+                    else "inconclusive"
+                ),
+                error=integrity_error,
+            ),
+        )
+    finding = store.get_finding(job.finding_id)
+    require_finding_authority(store, finding)
+    instruction = "\n".join(
+        [
+            DEVELOPMENT_ONLY_WARNING,
+            "Treat every produced candidate as development-only and disposable.",
+            "",
+            build_semantic_job_instruction(store=store, job=job),
+        ]
+    )
+    target_eval_path = store.job_dir(job_id) / "evidence" / "target_eval.jsonl"
+    try:
+        execution = executor.execute(
+            job=job,
+            instruction=instruction,
+            target_eval_path=target_eval_path,
+        )
+    except Exception as exc:
+        execution = CandidateExecution(
+            ok=False,
+            outcome="inconclusive",
+            error=f"Development candidate executor failed: {exc}",
+        )
+    post_integrity_error = verify_job_integrity(store=store, job=job)
+    if post_integrity_error:
+        execution = CandidateExecution(
+            ok=False,
+            outcome=(
+                "eval_target_invalid"
+                if _integrity_status(post_integrity_error)
+                == CandidateResultStatus.EVAL_TARGET_INVALID
+                else "inconclusive"
+            ),
+            revision_id=execution.revision_id,
+            candidate_id=execution.candidate_id,
+            candidate_project_dir=execution.candidate_project_dir,
+            evaluation_summary=execution.evaluation_summary,
+            error=post_integrity_error,
+        )
+    return _development_report(job=job, execution=execution)
 
 
 def execute_semantic_job(
@@ -381,6 +455,30 @@ def _finish_without_execution(
     )
     store.replace_job(replace(job, status=final_status), expected_status=JobStatus.PREPARED)
     return result
+
+
+def _development_report(
+    *,
+    job: BoundedCodexTask,
+    execution: CandidateExecution,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "job_id": job.job_id,
+        "development_only": True,
+        "formal_result_recorded": False,
+        "isolation_receipt_used": False,
+        "release_eligible": False,
+        "candidate_status": _result_status(execution).value,
+        "revision_id": execution.revision_id,
+        "candidate_id": execution.candidate_id,
+        "candidate_project_dir": execution.candidate_project_dir,
+        "evaluation_summary": dict(execution.evaluation_summary or {}),
+        "error": execution.error,
+        "job_status_after": JobStatus.PREPARED.value,
+        "warning": DEVELOPMENT_ONLY_WARNING,
+        "completed_at": _utc_now(),
+    }
 
 
 def _result_status(execution: CandidateExecution) -> CandidateResultStatus:

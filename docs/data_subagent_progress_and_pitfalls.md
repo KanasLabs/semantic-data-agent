@@ -1,6 +1,6 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
@@ -506,9 +506,9 @@ Restricted read-only access requires the elevated Windows sandbox backend
 
 Therefore this machine cannot honestly issue a passing receipt yet. A future
 external CI/container/VM worker or elevated Windows backend must run the probes,
-sign the receipt, and inject its environment ID. No real Codex execution was
-attempted. Verification after this change: SI2 `10/10`, full suite `133/133`, and
-`git diff --check` passed.
+sign the receipt, and inject its environment ID. No real Docker-isolated SI2
+candidate execution was attempted. Verification after this change: SI2
+`10/10`, full suite `133/133`, and `git diff --check` passed.
 
 ### SI2 Docker / CI isolated worker
 
@@ -599,6 +599,45 @@ Wren/eval environment, the `--execute` gate, and a valid Docker isolation
 receipt. SI2 still cannot
 approve or publish. SI3 engineering worktrees and SI4 release monitoring remain
 unimplemented.
+
+### SI2 development-only Host Session executor
+
+Added an explicit local-development path on 2026-07-20 so prompt and executor
+work can continue using the current host Codex CLI session while isolated
+provider credentials remain unavailable:
+
+```text
+execute-semantic-job-dev
+--execute
+--acknowledge-host-session-development-only
+```
+
+This is not a receipt bypass. The development function verifies the frozen Job
+and evidence before and after execution, but it creates no formal SI2
+`ImprovementJobResult`, stores no isolation receipt, leaves the Job `PREPARED`,
+and reports `development_only=true` plus `release_eligible=false`. The prompt
+also labels every candidate disposable and development-only.
+
+The development executor deliberately loads the current host Codex config and
+authentication. A minimal host-session probe succeeded with the configured
+mirror provider and `gpt-5.6-sol`, confirming that local iteration can proceed.
+The same run also encountered an unrelated host MCP `403`, demonstrating why
+personal config is not an isolation boundary.
+
+Release, CI, and Docker packaging must never copy a developer's `auth.json` or
+silently reuse a personal login. They require a dedicated API key or CI secret,
+the externally isolated worker, passing probes, and a signed receipt. The formal
+`execute-semantic-job` contract remains unchanged.
+
+Verification:
+
+```text
+host-session development probe: passed with gpt-5.6-sol
+SI2/CLI targeted tests: 14 passed
+full unit suite: 144 passed
+execute-semantic-job-dev help: passed
+git diff --check: passed
+```
 
 ### Main Agent orchestration architecture note
 

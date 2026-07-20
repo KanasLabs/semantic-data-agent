@@ -25,6 +25,33 @@ from data_agent_improvement.store import ImprovementStore
 
 
 class ImprovementCliTest(unittest.TestCase):
+    def test_development_execution_requires_explicit_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            args = [
+                "data-agent-improvement",
+                "execute-semantic-job-dev",
+                "--project-root",
+                str(root),
+                "--registry-root",
+                "registry",
+                "--job",
+                "job_" + "1" * 32,
+                "--context-registry-root",
+                str(root / "context-registry"),
+                "--wren-home",
+                str(root / "wren-home"),
+                "--wren-bin",
+                str(root / "wren"),
+                "--execute",
+            ]
+            with patch("sys.argv", args):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "acknowledge-host-session-development-only",
+                ):
+                    main()
+
     def test_authority_command_requires_acknowledgement_and_records_decision(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)

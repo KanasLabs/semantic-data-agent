@@ -29,6 +29,7 @@ class ContextBuilderSemanticExecutor:
         eval_model: str | None = None,
         eval_query_limit: int | None = None,
         eval_timeout_seconds: int = 1800,
+        host_session_development: bool = False,
         codex_runner_factory: Callable[[Path, Path, Path], Any] | None = None,
         wren_runner: WrenRunner | None = None,
         eval_runner: RevisionEvalRunner | None = None,
@@ -44,6 +45,7 @@ class ContextBuilderSemanticExecutor:
         self.eval_model = eval_model
         self.eval_query_limit = eval_query_limit
         self.eval_timeout_seconds = eval_timeout_seconds
+        self.host_session_development = host_session_development
         self.codex_runner_factory = codex_runner_factory
         self.wren_runner = wren_runner
         self.eval_runner = eval_runner
@@ -79,17 +81,13 @@ class ContextBuilderSemanticExecutor:
                     target_eval_path.parent,
                     output_schema_path,
                 )
-            return CodexCliRunner(
+            return _codex_runner_for_mode(
                 codex_bin=self.codex_bin,
-                project_root=candidate_project_dir,
-                sandbox="workspace-write",
-                model=self.codex_model,
+                candidate_project_dir=candidate_project_dir,
+                codex_model=self.codex_model,
                 timeout_seconds=job.timeout_seconds,
-                ephemeral=True,
-                ignore_user_config=True,
-                approval_policy="never",
                 output_schema_path=output_schema_path,
-                sanitized_environment=True,
+                host_session_development=self.host_session_development,
             )
 
         result = revise_candidate(
@@ -133,6 +131,29 @@ class ContextBuilderSemanticExecutor:
             evaluation_summary=dict(result.get("eval") or {}),
             error=None if result.get("ok") else _execution_error(result),
         )
+
+
+def _codex_runner_for_mode(
+    *,
+    codex_bin: str,
+    candidate_project_dir: Path,
+    codex_model: str | None,
+    timeout_seconds: int,
+    output_schema_path: Path,
+    host_session_development: bool,
+) -> CodexCliRunner:
+    return CodexCliRunner(
+        codex_bin=codex_bin,
+        project_root=candidate_project_dir,
+        sandbox="workspace-write",
+        model=codex_model,
+        timeout_seconds=timeout_seconds,
+        ephemeral=True,
+        ignore_user_config=not host_session_development,
+        approval_policy="never",
+        output_schema_path=output_schema_path,
+        sanitized_environment=True,
+    )
 
 
 def _codex_final_response_schema() -> dict[str, Any]:

@@ -41,9 +41,47 @@ remains the boundary, so Docker mounts, proxy restrictions, isolation probes,
 signed receipts, frozen eval targets, outer Wren/eval gates, and human review
 remain unchanged.
 
-The local host CLI is not authorized as a shortcut for a Docker receipt. Until
-the container image and probes pass, real SI2 execution remains blocked even
-though `codex.exe` is installed on Windows.
+The local host CLI is not authorized as a shortcut for a Docker receipt or a
+formal SI2 JobResult. It may be used only through the explicit development-only
+path below.
+
+## Development Host Session
+
+Local development may reuse the current host Codex CLI configuration and login
+state without reading, copying, or committing `auth.json`. This path exists to
+iterate on prompts, executors, candidate generation, and outer eval behavior
+while provider credentials for the isolated worker are unavailable.
+
+```powershell
+$env:PYTHONPATH='src'
+.\.venv-wren\python.exe -m data_agent_improvement.cli execute-semantic-job-dev `
+  --job job_... `
+  --context-registry-root data\tmp\development-context-registry `
+  --wren-home data\wren\home `
+  --wren-bin .venv-wren\Scripts\wren.exe `
+  --execute `
+  --acknowledge-host-session-development-only
+```
+
+The command deliberately:
+
+- loads the current host Codex configuration and authentication
+- requires both `--execute` and a development-only acknowledgement
+- emits `development_only=true` and `release_eligible=false`
+- creates no formal SI2 JobResult and stores no isolation receipt
+- leaves the Improvement Job in `PREPARED`
+- cannot authorize approval, publication, merge, or deployment
+
+Host configuration can include unrelated MCP servers, trust entries, approval
+settings, and other personal state. It is therefore unsuitable for release
+acceptance even when the model call succeeds. Use a disposable development
+Context Registry where possible.
+
+Release, CI, and Docker packaging must not reuse a developer's host login or
+copy `auth.json`. They require a separately configured provider credential,
+normally a dedicated API key or CI secret, injected by the runner or secret
+manager. The formal `execute-semantic-job` command and signed isolation receipt
+remain mandatory.
 
 ## Build And Start
 

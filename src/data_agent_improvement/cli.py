@@ -38,7 +38,12 @@ from .models import (
 )
 from .report import render_triage_report
 from .store import ImprovementStore, new_report_id
-from .si2 import execute_semantic_job, prepare_semantic_job, verify_job_integrity
+from .si2 import (
+    execute_semantic_job,
+    execute_semantic_job_development,
+    prepare_semantic_job,
+    verify_job_integrity,
+)
 from .triage import (
     approve_eval_target,
     create_eval_target,
@@ -221,6 +226,35 @@ def main() -> None:
     execute_job_parser.add_argument("--docker-https-proxy")
     execute_job_parser.add_argument("--execute", action="store_true")
     execute_job_parser.add_argument("--isolation-receipt", required=True)
+
+    execute_dev_parser = subparsers.add_parser(
+        "execute-semantic-job-dev",
+        parents=[common],
+        description=(
+            "Development-only SI2 execution using the current host Codex CLI session. "
+            "It does not create a formal JobResult or authorize release."
+        ),
+    )
+    execute_dev_parser.add_argument("--job", required=True)
+    execute_dev_parser.add_argument("--context-registry-root", required=True)
+    execute_dev_parser.add_argument("--wren-home", required=True)
+    execute_dev_parser.add_argument("--wren-bin", required=True)
+    execute_dev_parser.add_argument("--codex-bin", default="codex")
+    execute_dev_parser.add_argument("--codex-model")
+    execute_dev_parser.add_argument("--regression-suite", action="append", default=[])
+    execute_dev_parser.add_argument("--smoke-sql")
+    execute_dev_parser.add_argument("--eval-model")
+    execute_dev_parser.add_argument("--eval-query-limit", type=int)
+    execute_dev_parser.add_argument("--eval-timeout-seconds", type=int, default=1800)
+    execute_dev_parser.add_argument("--execute", action="store_true")
+    execute_dev_parser.add_argument(
+        "--acknowledge-host-session-development-only",
+        action="store_true",
+        help=(
+            "Acknowledge that host configuration/authentication is not externally "
+            "isolated and cannot be used for release, CI, or Docker acceptance."
+        ),
+    )
 
     prepare_docker_parser = subparsers.add_parser(
         "prepare-docker-isolation",
@@ -600,6 +634,40 @@ def main() -> None:
             ),
         )
         _print_json(result.to_dict(), pretty=True)
+        return
+
+    if args.command == "execute-semantic-job-dev":
+        if not args.execute:
+            raise ValueError(
+                "execute-semantic-job-dev requires the explicit --execute flag."
+            )
+        if not args.acknowledge_host_session_development_only:
+            raise ValueError(
+                "execute-semantic-job-dev requires "
+                "--acknowledge-host-session-development-only."
+            )
+        from .codex_executor import ContextBuilderSemanticExecutor
+
+        executor = ContextBuilderSemanticExecutor(
+            project_root=project_root,
+            context_registry_root=Path(args.context_registry_root),
+            wren_home=Path(args.wren_home),
+            wren_bin=Path(args.wren_bin),
+            codex_bin=args.codex_bin,
+            codex_model=args.codex_model,
+            regression_suites=[Path(path) for path in args.regression_suite],
+            smoke_sql=args.smoke_sql,
+            eval_model=args.eval_model,
+            eval_query_limit=args.eval_query_limit,
+            eval_timeout_seconds=args.eval_timeout_seconds,
+            host_session_development=True,
+        )
+        report = execute_semantic_job_development(
+            store=store,
+            job_id=args.job,
+            executor=executor,
+        )
+        _print_json(report, pretty=True)
         return
 
     if args.command == "show-job":
