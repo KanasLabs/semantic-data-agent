@@ -36,6 +36,7 @@ Verification:
 full unit suite: 175 passed
 tracked user-specific absolute-path scan: no matches
 high-confidence credential-pattern scan: no real secrets found
+GitHub PR Gitleaks check: passed
 git diff --check: passed
 ```
 
