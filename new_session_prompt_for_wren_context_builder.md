@@ -100,7 +100,7 @@ onboarding/validation/round_<n>.json
 最新完整测试：
 
 ```text
-Ran 90 tests
+Ran 130 tests
 OK
 ```
 

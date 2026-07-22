@@ -1,0 +1,17 @@
+ARG BASE_IMAGE=debian:bookworm-slim
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_MIRROR_HOST=deb.debian.org
+
+RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR_HOST}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates squid-openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY squid.conf /etc/squid/squid.conf
+
+EXPOSE 3128
+
+USER proxy
+
+ENTRYPOINT ["squid", "-N", "-f", "/etc/squid/squid.conf"]

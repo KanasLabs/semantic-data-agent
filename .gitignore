@@ -1,4 +1,6 @@
 deepseek_apikey.txt
+*apikey*.txt
+COMP7706_Logbook_*_Draft*.docx
 .env
 .venv/
 .venv-wren/
@@ -13,6 +15,7 @@ data/**/*.duckdb.wal
 data/duckdb_extensions/
 data/evals/runs/
 data/evals/reports/
+data/improvement_registry/
 data/external/
 data/wren/home/
 data/wren/jaffle_shop_duckdb/

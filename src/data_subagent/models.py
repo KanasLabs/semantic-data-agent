@@ -108,6 +108,13 @@ class TraceRecord:
     chart_spec: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
+    schema_version: int = 2
+    runtime_identity: dict[str, Any] = field(default_factory=dict)
+    context_identity: dict[str, Any] = field(default_factory=dict)
+    data_identity: dict[str, Any] = field(default_factory=dict)
+    llm_identity: dict[str, Any] = field(default_factory=dict)
+    eval_identity: dict[str, Any] = field(default_factory=dict)
+    timings_ms: dict[str, int | None] = field(default_factory=dict)
 
     @classmethod
     def start(cls, question: str, user_id: str | None = None) -> "TraceRecord":

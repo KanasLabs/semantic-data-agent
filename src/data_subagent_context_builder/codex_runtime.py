@@ -42,17 +42,30 @@ class CodexCliRunner:
         sandbox: str = "workspace-write",
         model: str | None = None,
         timeout_seconds: int = 900,
+        ephemeral: bool = False,
+        ignore_user_config: bool = False,
+        approval_policy: str | None = None,
+        output_schema_path: Path | None = None,
+        sanitized_environment: bool = False,
     ) -> None:
         self.codex_bin = codex_bin
         self.project_root = project_root
         self.sandbox = sandbox
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.ephemeral = ephemeral
+        self.ignore_user_config = ignore_user_config
+        self.approval_policy = approval_policy
+        self.output_schema_path = output_schema_path
+        self.sanitized_environment = sanitized_environment
 
     def run(self, prompt: str, *, last_message_path: Path | None = None) -> CodexCommandResult:
         resolved_codex_bin = shutil.which(self.codex_bin) or self.codex_bin
-        args = [
-            resolved_codex_bin,
+        args = [resolved_codex_bin]
+        if self.approval_policy:
+            args.extend(["--ask-for-approval", self.approval_policy])
+        args.extend(
+            [
             "exec",
             "--cd",
             str(self.project_root),
@@ -60,7 +73,14 @@ class CodexCliRunner:
             self.sandbox,
             "--color",
             "never",
-        ]
+            ]
+        )
+        if self.ephemeral:
+            args.append("--ephemeral")
+        if self.ignore_user_config:
+            args.append("--ignore-user-config")
+        if self.output_schema_path:
+            args.extend(["--output-schema", str(self.output_schema_path.resolve())])
         if self.model:
             args.extend(["--model", self.model])
         if last_message_path:
@@ -78,6 +98,7 @@ class CodexCliRunner:
                     stderr=stderr_file,
                     creationflags=creation_flags,
                     start_new_session=os.name != "nt",
+                    env=_codex_environment() if self.sanitized_environment else None,
                 )
             except OSError as exc:
                 return CodexCommandResult(
@@ -130,6 +151,27 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+
+
+def _codex_environment() -> dict[str, str]:
+    allowed = {
+        "APPDATA",
+        "CODEX_HOME",
+        "COMSPEC",
+        "HOME",
+        "LANG",
+        "LOCALAPPDATA",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "WINDIR",
+    }
+    environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
+    environment["PYTHONIOENCODING"] = "utf-8"
+    return environment
 
 
 def prepare_codex_enrichment(

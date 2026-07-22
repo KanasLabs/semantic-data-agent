@@ -28,6 +28,12 @@ class EvalRunnerTest(unittest.TestCase):
             )
         )
 
+    def test_expected_any_value_supports_explicit_numeric_tolerance(self):
+        from data_subagent.eval_runner import _contains_expected_value
+
+        self.assertTrue(_contains_expected_value([721.8004], 721.8, 0.001))
+        self.assertFalse(_contains_expected_value([721.802], 721.8, 0.001))
+
     def test_load_eval_cases(self):
         with tempfile.TemporaryDirectory() as tmp:
             suite = Path(tmp) / "suite.jsonl"

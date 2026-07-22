@@ -1,7 +1,7 @@
 # Data Agent Self-Improvement Architecture & SI0 Contract
 
-Status: Proposed for implementation
-Date: 2026-07-16
+Status: SI0-SI3 development controllers implemented; real SI2/SI3 development execution verified; formal SI3 Docker/CI and SI4 pending
+Date: 2026-07-22
 Scope: Background controlled self-improvement for the Data Agent system
 
 ## 1. Executive Decision
@@ -749,7 +749,7 @@ UNTRIAGED
 
 SI0 must not populate `root_cause`.
 
-### 14.1 Future GroupedFinding Contract
+### 14.1 GroupedFinding Contract
 
 SI1 organizes one or more related `FailureCase` records into a reviewed
 `GroupedFinding`. `grouping_mode=SINGLETON` is allowed for a high-confidence,
@@ -766,6 +766,8 @@ ratings and ambiguous benchmark cases require clustering or human triage.
   "representative_trace_ids": ["trace_..."],
   "root_cause_candidate": "BUSINESS_SEMANTIC_GAP",
   "confirmed_business_truth_feedback_ids": ["feedback_..."],
+  "authority_decision_ids": ["authority_..."],
+  "business_scopes": ["realized_revenue"],
   "status": "EVAL_TARGET_REQUIRED",
   "created_at": "2026-07-16T00:00:00+00:00"
 }
@@ -774,7 +776,7 @@ ratings and ambiguous benchmark cases require clustering or human triage.
 Grouping is evidence organization, not proof of root cause. Infrastructure and
 benchmark-quality findings must remain separate from semantic improvement.
 
-### 14.2 Future EvalTarget Contract
+### 14.2 EvalTarget Contract
 
 Before Codex executes, SI1 converts a reviewed finding into a versioned target.
 The target lifecycle is `DRAFT -> NEEDS_BUSINESS_REVIEW -> APPROVED -> FROZEN`.
@@ -811,7 +813,7 @@ shows the target is wrong or unreplayable, Codex reports
 `EVAL_TARGET_INVALID`; it cannot edit the target. Equivalent SQL is accepted
 when it satisfies the result contract and semantic constraints.
 
-### 14.3 Future BoundedCodexTask Contract
+### 14.3 BoundedCodexTask Contract
 
 SI2/SI3 gives Codex an explicit job rather than an open-ended instruction:
 
@@ -849,6 +851,33 @@ and release gates. A run result is one of `PASS`, `FAIL`, `INCONCLUSIVE`,
 for deterministic Wren-only checks and greater than one for DeepSeek-dependent
 behavior.
 
+The implemented SI2 executor boundary is a replaceable Python `Protocol`.
+`ContextBuilderSemanticExecutor` is currently backed by the installed
+`codex exec` CLI and the existing Context Builder `revise_candidate` workflow;
+a future Codex SDK adapter can implement the same protocol without changing the
+job controller.
+
+Explicit implementation decision as of 2026-07-16:
+
+```text
+current: Codex CLI adapter inside the Docker/CI isolation worker
+later:   verified Codex SDK adapter inside the same isolation worker
+stable:  Job, receipt, evidence, eval, review, and publication contracts
+```
+
+CLI-first is the approved MVP path, not an unsafe fallback. It does not permit
+direct host execution or bypass the signed isolation receipt. A future SDK may
+replace process invocation, streaming, and structured-result plumbing only; it
+must not weaken filesystem/network isolation, frozen-target ownership, outer
+evals, human review, or publication controls.
+
+The installed CLI was directly verified to support `workspace-write`,
+`--ephemeral`, `--ignore-user-config`, `--output-schema`, JSONL output, and
+non-interactive execution. The OpenAI Codex manual helper was attempted inside
+and outside the sandbox on 2026-07-16 but the official endpoint returned HTTP
+403, and Docs MCP was unavailable in this session. No undocumented SDK
+parameters were invented.
+
 ### 14.4 Dual Release Channels
 
 Semantic and engineering candidates have different release mechanics:
@@ -877,23 +906,29 @@ data/improvement_registry/
   cases/
     case_<id>/
       case.json
-  findings/                 # reserved for SI1
+  authority/
+    authority_<id>.json
+  findings/
     finding_<id>.json
-  eval_targets/             # reserved for SI1
+  eval_targets/
     evaltarget_<id>.json
-  jobs/                     # reserved for SI2/SI3
-    job_<id>.json
+  jobs/
+    job_<id>/
+      job.json
+      evidence/
+      control/
+      result.json
   reports/
     <report_id>.md
   events/
     event_<id>.json
 ```
 
-The directory is local runtime state and should be Git-ignored. SI0 creates only
-`feedback`, `cases`, `reports`, and optional `events`; later directories are
-reserved to keep IDs and paths forward-compatible. Stable schemas, fixtures,
-and curated eval cases belong in source control; real feedback and runtime
-cases do not.
+The directory is local runtime state and is Git-ignored. SI0 creates
+`feedback`, `cases`, `reports`, and optional `events`. SI1 adds immutable
+authority decisions and findings plus lifecycle-controlled EvalTargets. Stable
+schemas, fixtures, and curated eval cases belong in source control; real
+feedback and runtime records do not.
 
 Proposed Python boundary:
 
@@ -940,7 +975,7 @@ valid and the CLI returns a retryable partial result.
 SI0 ingestion never calls an LLM, database, Wren, Data Subagent, Context
 Builder revision command, or eval-suite writer.
 
-## 17. Proposed SI0 CLI
+## 17. SI0 And SI1 CLI
 
 Record feedback:
 
@@ -981,6 +1016,92 @@ Inspect and report:
 
 All commands support `--project-root` and `--registry-root`. The default
 registry is `data/improvement_registry` under the resolved project root.
+
+SI1 authority, grouping, and target lifecycle:
+
+```powershell
+.\.venv-wren\python.exe -m data_agent_improvement.cli record-authority `
+  --feedback-id feedback_... --decision CONFIRM `
+  --context-id data_agent_mvp --scope realized_revenue `
+  --decided-by project-owner --reason "Scoped business owner confirmed" `
+  --project-authority-confirmed
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli suggest-groups
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli create-finding `
+  --context-id data_agent_mvp --grouping-mode SINGLETON `
+  --case case_... --root-cause BUSINESS_SEMANTIC_GAP `
+  --business-feedback feedback_... --business-scope realized_revenue
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli create-eval-target `
+  --finding finding_... --question "What is realized revenue?" `
+  --expected-value 721.8 --numeric-tolerance 0.001 `
+  --required-filter "orders.status = completed" --required-unit CNY
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli submit-eval-target `
+  --eval-target evaltarget_...
+.\.venv-wren\python.exe -m data_agent_improvement.cli approve-eval-target `
+  --eval-target evaltarget_... --reviewer-id business-reviewer
+.\.venv-wren\python.exe -m data_agent_improvement.cli freeze-eval-target `
+  --eval-target evaltarget_...
+```
+
+`record-authority` is a trusted local administrator action. The acknowledgement
+flag prevents accidental use but is not authentication. A deployed service
+must authenticate and authorize the operator before calling the same control
+service.
+
+Prepare and explicitly execute an SI2 semantic candidate job:
+
+```powershell
+.\.venv-wren\python.exe -m data_agent_improvement.cli prepare-semantic-job `
+  --eval-target evaltarget_... --base-candidate-id candidate_... `
+  --base-snapshot-path data\wren\base_project
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli prepare-docker-isolation `
+  --job job_... --docker-image data-agent-si2-codex-worker:0.144.1 `
+  --docker-network data-agent-si2-internal `
+  --docker-https-proxy http://data-agent-si2-egress-proxy:3128 `
+  --issuer ci-runner --output data\tmp\si2_worker\isolation_receipt.json
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli verify-isolation-receipt `
+  --job job_... --receipt data\tmp\si2_worker\isolation_receipt.json
+
+.\.venv-wren\python.exe -m data_agent_improvement.cli execute-semantic-job `
+  --job job_... --context-registry-root data\context_registry `
+  --wren-home data\wren\home --wren-bin .venv-wren\Scripts\wren.exe `
+  --executor docker --docker-image data-agent-si2-codex-worker:0.144.1 `
+  --docker-network data-agent-si2-internal `
+  --docker-https-proxy http://data-agent-si2-egress-proxy:3128 `
+  --isolation-receipt data\tmp\si2_worker\isolation_receipt.json --execute
+```
+
+Preparation never invokes Codex. The external worker must inject
+`DATA_AGENT_ISOLATION_HMAC_KEY` and `DATA_AGENT_ISOLATION_ENVIRONMENT_ID`; an
+operator must not paste either value into a prompt or persist the HMAC key. The
+receipt is short-lived, HMAC-authenticated, and bound to the Job contract,
+frozen EvalTarget, evidence manifest, schema fingerprint, logical writable
+root, and active external environment ID.
+
+The receipt is not a checkbox. Its signed probe map must confirm process-tree
+isolation, child-policy inheritance, candidate-only writes, read-only evidence,
+an unmounted base snapshot/repository/Registry, denied reads/writes outside the
+workspace, denied tool network, and minimized credentials. The Docker worker
+joins an internal network with no direct internet route. The Codex provider
+control plane remains reachable only through an ACL proxy that permits
+`api.openai.com` and rejects other destinations; model-generated tools receive
+neither network access nor inherited proxy/authentication variables. The
+controller verifies and stores the immutable receipt before changing the Job
+from `PREPARED` to `RUNNING`.
+
+The current Windows host cannot itself issue this receipt. Local
+`codex-cli 0.144.1` exposes `--sandbox-state-readable-root` and
+`--sandbox-state-disable-network`, but a strict read-allowlist probe reports
+that restricted read-only access requires the elevated Windows sandbox backend.
+The Docker/CI worker is now implemented as the preferred workaround. Its live
+probe/build still requires a runner that can pull the fixed worker/proxy images
+and reach the OpenAI API through the controlled proxy. Until those probes sign
+the receipt, real SI2 Codex execution remains blocked by design.
 
 ## 18. Report Contract
 
@@ -1040,6 +1161,9 @@ SI0 tests cover:
 - legacy trace compatibility
 - invalid JSON file/line reporting
 - no network, database, Wren, DeepSeek, or Codex process
+- invalid, expired, tampered, or wrong-environment isolation receipts cannot
+  start an executor
+- the isolation HMAC key and environment ID are not inherited by Codex
 - feedback SQL is never executed
 - result rows are not copied into cases
 - evidence bundles redact/minimize raw trace payloads
@@ -1100,7 +1224,7 @@ SI0 is complete when:
 
 ## 24. Follow-Up Phases
 
-### SI1: Grouped Findings And Frozen Eval Targets
+### SI1: Grouped Findings And Frozen Eval Targets (Implemented)
 
 - assign root-cause candidates
 - create singleton findings for authorized high-confidence corrections
@@ -1113,7 +1237,7 @@ SI0 is complete when:
 - keep target evals immutable during later candidate execution
 - do not modify Context
 
-### SI2: Semantic Bounded Codex Tasks
+### SI2: Semantic Bounded Codex Tasks (Controller Implemented)
 
 - compose tasks from a reviewed finding and frozen eval target
 - mount only a sanitized, manifested evidence bundle read-only
@@ -1125,11 +1249,46 @@ SI0 is complete when:
 
 ### SI3: Engineering Worktree And Pull Request
 
+Repair-layer selection uses two immutable records rather than allowing a Codex
+diagnosis to become executable authority directly:
+
+```text
+Codex or another investigator creates RoutingProposal
+-> deterministic controller records READY_FOR_REVIEW or DIAGNOSIS_REQUIRED
+-> authenticated human reviews the proposal
+-> confirmation creates hash-bound RoutingDecision
+-> SI2 or SI3 Job preparation accepts the RoutingDecision only
+```
+
+`RoutingProposal` preserves the proposed target, typed evidence, rationale,
+proposer identity, validation policy, and all deterministic validation errors.
+Insufficient evidence is stored as `DIAGNOSIS_REQUIRED` but cannot be
+confirmed. A `READY_FOR_REVIEW` proposal also cannot start a Job by itself.
+Human confirmation creates a separate `RoutingDecision` that records the
+confirmer and confirmation rationale and binds the exact proposal with
+canonical SHA-256. The controller revalidates the proposal at confirmation and
+Job integrity time. The local CLI cannot authenticate identities; deployed
+API/CI surfaces must authenticate the confirmer before calling this service.
+
+The direct `create-routing-decision` CLI remains a trusted-local-admin
+compatibility shortcut for existing development records. Normal automated
+workflows should use proposal, review, and confirmation.
+
+- require an immutable reviewed `RoutingDecision` before creating a SOURCE_CODE Job
+- require source reproduction, post-Context failure, or structural source-defect evidence
+- for semantic or ambiguous Findings, additionally prove that the Context rule or generated SQL is already correct, or that a reviewed source contract explicitly owns the behavior
 - create an isolated writable Git worktree for prompt/code tasks
 - provide production traces and accepted eval targets as read-only evidence
-- allow bounded Codex changes to schema, mapper, prompt, adapter, or tests
+- allow bounded Codex changes only to explicitly allowlisted source paths
 - require unit tests, frozen target eval, full regression, and engineering review
 - output a patch or pull request candidate, never a direct deployment
+
+Passing outer evaluation proves that a candidate satisfies the frozen acceptance
+contract. It does not prove that the selected repair layer was appropriate. The
+RoutingDecision is therefore a separate preflight record, is packaged into the
+read-only evidence bundle, and is hash-bound to the Job. When it originates
+from a RoutingProposal, the proposal is also hash-bound and rechecked. A semantic Finding
+cannot enter SI3 merely because a source edit could make its tests pass.
 
 ### SI4: Release Health And Rollback
 
@@ -1155,6 +1314,12 @@ expected candidate answer:
   721.80 CNY
 ```
 
+Before an SI3 variant of this case may start, the reviewed RoutingDecision must
+show both that Wren Context or generated SQL already expresses the completed-only
+rule, or that a reviewed source contract owns that behavior, and that a
+source-level or post-Context defect still reproduces the failure.
+Without both forms of evidence, the case remains SI2 or `DIAGNOSIS_REQUIRED`.
+
 The future loop passes only when a correction pair links to the original trace,
 the actor is authorized for the Context and business scope, the case becomes a
 reviewed singleton or clustered finding, a result/semantic EvalTarget is frozen
@@ -1166,16 +1331,75 @@ unpublished until separate approval and publication.
 SI0 provides the evidence foundation only. It intentionally does not create or
 execute the improvement task.
 
-## 26. Implementation Decision
+## 26. Implementation Decision And Status
 
-The first coding milestone should implement SI0 exactly as a read-only evidence
-and failure-inbox layer. This prevents the most dangerous failure mode in a
+The first coding milestone implements SI0 exactly as a read-only evidence and
+failure-inbox layer. This prevents the most dangerous failure mode in a
 self-improving system: generating changes before the system can state which
 version failed, why it was flagged, who supplied business truth, and which
 evidence must be preserved.
 
-After SI0 is verified, SI1 can add deterministic triage, grouped findings, and
-frozen eval targets. Only after SI1 can distinguish semantic gaps, runtime
-errors, infrastructure failures, and benchmark uncertainty—and can state the
-acceptance target before repair—should SI2 invoke the existing Context revision
-engine.
+Implemented on `feature/self-improvement-si0`:
+
+```text
+src/data_agent_improvement/
+  models.py       typed FeedbackRecord and FailureCase contracts
+  store.py        immutable atomic filesystem registry
+  evidence.py     project-scoped JSONL evidence reading
+  feedback.py     correction hash verification and feedback ingestion
+  ingestion.py    trace/eval normalization and deterministic case IDs
+  report.py       bounded Markdown failure-inbox reports
+  cli.py          record, ingest, list, show, and report commands
+```
+
+The online `TraceRecord` now emits schema version 2 through the real
+`DataSubagent` path. It records runtime, Context, data, LLM, eval, and timing
+identity; Wren project fingerprints use a semantic-file allowlist; result and
+schema evidence is hashed. Existing version-1 JSONL remains readable and is
+never rewritten.
+
+SI0 commands create no finding, EvalTarget, Codex task, candidate, approval,
+publication, or rollback. SI1 adds only authority decisions, deterministic
+grouping, reviewed findings, and frozen EvalTargets. Neither phase imports
+Codex, DeepSeek, Wren, network, database, or subprocess runtime.
+
+SI1 is implemented in `triage.py` and the extended store/CLI. It records
+project authority confirmation separately from user feedback, rejects
+unauthorized semantic singleton findings, separates benchmark triage by
+signature, supports explicit finding dismissal, and enforces:
+
+```text
+DRAFT -> NEEDS_BUSINESS_REVIEW -> APPROVED -> FROZEN
+```
+
+Frozen target hashes cover the finding identity, question, result contract,
+semantic constraints, SQL hints, and evidence references. Content cannot be
+changed in place; corrected targets receive a new version and the old target
+becomes `SUPERSEDED`. Authority is checked again at approval and freeze, so a
+revocation blocks later execution readiness.
+
+SI0 and SI1 now establish evidence, authority, finding, and frozen acceptance
+contracts. The SI2 controller now packages a sanitized evidence bundle, creates
+a tamper-evident job, and can invoke the existing Context revision engine only
+from a frozen target. A real Codex candidate execution is still pending.
+
+SI2 implementation details:
+
+- `si2.py` owns evidence packaging, target/manifest integrity checks, job state,
+  signed isolation-receipt enforcement, and result mapping.
+- `isolation.py` owns Job binding, required probe policy, HMAC verification,
+  environment matching, and receipt expiry.
+- `docker_worker.py` owns immutable image resolution, hardened bind mounts,
+  internal-network/proxy checks, filesystem/network/credential probes, prompt
+  path translation, and Docker Codex execution.
+- `infra/si2_codex_worker/` provides the fixed Codex worker image and an
+  OpenAI-only Squid egress proxy topology.
+- `codex_executor.py` adapts the bounded task to `revise_candidate`.
+- the Codex process uses an ephemeral session, ignores user config, requests no
+  approvals, omits web search, uses a JSON output schema, and receives a
+  sanitized environment without DeepSeek, database, or isolation credentials.
+- the outer Context Builder creates the candidate, runs Wren validation,
+  generated smoke, repeated frozen target evals, and configured regressions.
+- frozen numeric result contracts are enforced by the EvalRunner with their
+  explicit tolerance; semantic filters currently use SQL-fragment fallback.
+- `PASS` stops at `REVIEW_REQUIRED`; no SI2 path approves or publishes.

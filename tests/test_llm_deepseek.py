@@ -48,6 +48,23 @@ class DeepSeekLLMAdapterTest(unittest.TestCase):
 
         self.assertEqual(adapter.calls, 3)
 
+    def test_summarize_result_includes_authoritative_semantic_units(self):
+        adapter = CapturingSummaryAdapter(api_key="test")
+
+        answer, _, _ = adapter.summarize_result_with_context(
+            question="What is the total realized revenue?",
+            sql="select sum(total_amount) from orders where status = 'completed'",
+            rows=[{"realized_revenue": 721.8}],
+            context=WrenContext(
+                text="total_amount: Gross order amount denominated in CNY.",
+                raw={},
+            ),
+        )
+
+        self.assertEqual(answer, "The total realized revenue is 721.80 CNY.")
+        self.assertIn("denominated in CNY", adapter.user_prompt)
+        self.assertIn("Preserve explicitly declared unit names", adapter.system_prompt)
+
 
 class MalformedSummaryAdapter(DeepSeekLLMAdapter):
     def _json_chat(self, system, user, max_tokens):
@@ -74,6 +91,22 @@ class AlwaysMalformedAdapter(DeepSeekLLMAdapter):
     def _json_chat_once(self, system, user, max_tokens):
         self.calls += 1
         raise LLMResponseParseError("empty response")
+
+
+class CapturingSummaryAdapter(DeepSeekLLMAdapter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.system_prompt = ""
+        self.user_prompt = ""
+
+    def _json_chat(self, system, user, max_tokens):
+        self.system_prompt = system
+        self.user_prompt = user
+        return {
+            "answer": "The total realized revenue is 721.80 CNY.",
+            "chart_spec": {},
+            "confidence": 1.0,
+        }
 
 
 if __name__ == "__main__":

@@ -1,0 +1,46 @@
+services:
+  worker-image:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${WORKER_BASE_IMAGE:-node:22-bookworm-slim}
+        CODEX_VERSION: ${CODEX_VERSION:-0.144.1}
+        DEBIAN_MIRROR_HOST: ${DEBIAN_MIRROR_HOST:-deb.debian.org}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: data-agent-si2-codex-worker:${CODEX_VERSION:-0.144.1}
+    profiles:
+      - build
+    entrypoint:
+      - codex
+      - --version
+
+  egress-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+      args:
+        BASE_IMAGE: ${PROXY_BASE_IMAGE:-debian:bookworm-slim}
+        DEBIAN_MIRROR_HOST: ${DEBIAN_MIRROR_HOST:-deb.debian.org}
+    image: data-agent-si2-egress-proxy:local
+    container_name: data-agent-si2-egress-proxy
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /run:rw,nosuid,nodev,size=16m
+      - /var/log/squid:rw,nosuid,nodev,size=16m
+      - /var/spool/squid:rw,nosuid,nodev,size=16m
+    networks:
+      - si2-internal
+      - provider-egress
+
+networks:
+  si2-internal:
+    name: data-agent-si2-internal
+    internal: true
+  provider-egress:
+    name: data-agent-si2-provider-egress

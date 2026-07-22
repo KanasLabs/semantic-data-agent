@@ -1,6 +1,6 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-16
+Last updated: 2026-07-22
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
@@ -9,6 +9,121 @@ but current.
 
 The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
 Builder implementation.
+
+### First GitHub milestone preparation
+
+Prepared the first remote-ready project milestone on 2026-07-22. The selected
+change set covers the controlled SI3 source-candidate and routing workflow,
+shared candidate evaluation, development-only release guards, semantic-unit
+summarization, related tests, and the current architecture notes. Local API-key
+files and COMP7706 draft logbooks are excluded by `.gitignore`; presentation
+artifacts are reviewed and committed separately from runtime code.
+
+Verification before the local milestone commit:
+
+```text
+full unit suite: 175 passed
+git diff --cached --check: passed
+named API-key files: ignored and not staged
+```
+
+No GitHub remote was configured and no push was performed during this
+preparation step.
+
+### Project presentation content script
+
+Added `docs/presentation/data_agent_presentation_script.md` on 2026-07-20 as
+the reviewed-content source for a future project presentation deck. The default
+deck is a 12-15 minute Chinese internship presentation for a mixed technical
+and business audience.
+
+The script defines a 12-slide narrative from the Text-to-SQL reliability gap
+through the three separated workstreams, controlled online workflow, real ReAct
+repair, Context Builder onboarding, and the development-only SI2 improvement
+case. It also includes speaker notes, timing, visual guidance, a fact-check
+table, asset and security constraints, backup slides, likely Q&A, and a PPT
+generation checklist.
+
+Added `docs/presentation/data_agent_presentation_script_en.md` as the primary
+source for the actual English PPT and spoken presentation. Its on-slide text,
+speaker notes, transitions, terminology, pronunciation guidance, and Q&A are in
+natural presentation English rather than literal translation. Each main slide
+also includes a short Chinese comprehension note. The original Chinese script
+is retained as the presenter's reference rather than the PPT generation source.
+
+The presentation constraint was later tightened to a strict five minutes.
+Added `docs/presentation/data_agent_presentation_script_en_5min.md` as the new
+primary PPT source and reclassified the 12-slide English script as the backup
+content bank. The final five-minute version has seven main slides and `561`
+spoken English words after the Slide 3 workflow correction. That is
+approximately `4:41` at 120 words per minute or `4:29` at 125 words per
+minute, leaving only a controlled slide-transition buffer under the hard
+limit. It retains the overall architecture, controlled online workflow, real
+ReAct repair, Context Builder, development-only improvement case, verification,
+personal contribution placeholder, limitation, and final takeaway. Detailed
+SI0-SI4, isolation, dataset, and workflow material moves to backup slides.
+
+The presenter's contribution statement was confirmed as implementing a
+runnable end-to-end MVP loop: the controlled data-questioning runtime, Wren and
+DeepSeek integration, and the connection from traces and evaluations to a
+reviewable improvement workflow.
+
+Corrected Slide 3 in the five-minute Markdown source to match the implemented
+runtime exactly: clarity checking precedes context retrieval; both Wren
+`dry-plan` and `dry-run` failures can enter bounded LLM repair; repaired SQL
+passes the read-only guardrail again; execution failure is terminal; and trace
+finalization covers success, failure, and clarification outcomes.
+
+Split the former combined Context Builder and self-improvement page into two
+focused slides without increasing the spoken word count. Slide 5 now explains
+how the upstream Context Builder creates and validates a Wren candidate, while
+Slide 6 explains the development-only evidence-to-candidate improvement flow
+and its `REVIEW_REQUIRED` human gate. The results and contribution page moves
+to Slide 7. The existing generated PPTX, PDF, previews, and PowerPoint generator
+still represent the earlier six-slide layout and must be regenerated before
+they are treated as final artifacts.
+
+Generated the final editable presentation artifacts with native PowerPoint
+vector shapes and six English Speaker Notes:
+
+```text
+docs/presentation/data_agent_project_presentation_en_5min.pptx
+docs/presentation/data_agent_project_presentation_en_5min.pdf
+docs/presentation/data_agent_project_presentation_en_5min_preview/
+scripts/generate_data_agent_presentation.ps1
+```
+
+The generator reads the six Speaker Scripts from the five-minute Markdown,
+creates a 16:9 dark-theme deck, writes the notes into PowerPoint Notes pages,
+and exports PDF plus 1600x900 PNG previews. The deck was visually reviewed
+slide by slide; one incorrect error-loop arrow was corrected so the database
+error now originates from Wren `dry-run` rather than the SQL Guardrail.
+
+Verification:
+
+```text
+PowerPoint generation: passed, 6 slides
+PPTX notes XML: 6/6 present
+opening and contribution/takeaway notes: present
+PDF export: passed
+PNG export: 6/6 at 1600x900
+visual overflow/alignment review: passed
+git diff --check: passed
+```
+
+The cover intentionally retains editable `[Your Name]` and
+`[University / Department]` placeholders because those values have not yet
+been provided. No runtime code, Wren state, trace, eval artifact, registry, or
+secret was changed.
+
+The presentation facts use the latest recorded results: full unit suite
+`146/146`, BIRD Verified10 `10/10` with `7 auto_pass` and `3 needs_triage`, and
+the realized-revenue development candidate's smoke `3/3` plus frozen target
+`3/3`. The script explicitly prevents presenting that development-only
+candidate as formally isolated, approved, publishable, or production-ready.
+Personal contribution fields remain placeholders until the presenter confirms
+the actual work split. No runtime code, Wren state, trace, eval artifact, or
+registry data was changed.
 
 ### BIRD Mini-Dev StarRocks Context Builder integration test
 
@@ -273,6 +388,835 @@ OK
 
 No runtime code, local Context Registry, Wren state, trace, or eval artifact was
 changed during this design-only milestone.
+
+### Controlled self-improvement SI0 implementation
+
+Implemented the SI0 evidence foundation on 2026-07-16 in the separate
+`data_agent_improvement` package:
+
+```text
+src/data_agent_improvement/models.py
+src/data_agent_improvement/store.py
+src/data_agent_improvement/evidence.py
+src/data_agent_improvement/feedback.py
+src/data_agent_improvement/ingestion.py
+src/data_agent_improvement/report.py
+src/data_agent_improvement/cli.py
+```
+
+The implementation provides:
+
+- typed and validated `FeedbackRecord`, optional correction pairs, scoped actor
+  authority claims, and `FailureCase` records
+- immutable atomic feedback writes and deterministic, idempotent case creation
+- legacy/version-2 trace ingestion and failed/`needs_triage` eval ingestion
+- negative/correction feedback case creation while positive ordinary ratings
+  remain feedback-only
+- observed answer/SQL hash verification without copying result rows
+- project-root evidence path enforcement and credential-pattern rejection or
+  redaction
+- read-only list/show operations and bounded Markdown inbox reports
+- a CLI that records feedback, ingests traces/evals, lists/shows cases, and
+  writes reports under the Git-ignored `data/improvement_registry/`
+
+The real Data Subagent trace path now emits schema version 2 with runtime,
+Context, data, LLM, eval, and timing identity. Wren fingerprints use an explicit
+semantic-file allowlist; schema and full result evidence are represented by
+SHA-256 hashes. Eval runs attach `run_id`, `eval_id`, and `suite_name` to their
+traces. Existing trace JSONL is not rewritten and missing version metadata is
+normalized as legacy version 1 during ingestion.
+
+Verification:
+
+```text
+SI0 targeted tests: 24 passed
+full unit suite at SI0 milestone: 114 passed
+CLI help/list smoke: passed
+git diff --check: passed
+forbidden SI0 imports: no Codex / DeepSeek / Wren / subprocess / urllib
+```
+
+No real trace file, eval run, Wren state, Context Registry, or Improvement
+Registry record was created during verification; tests use temporary
+directories. SI1 was implemented in the following milestone.
+
+### Controlled self-improvement SI1 implementation
+
+Implemented deterministic SI1 triage and frozen acceptance contracts on
+2026-07-16. `src/data_agent_improvement/triage.py` and the extended models,
+store, and CLI now provide:
+
+- immutable `AuthorityDecision` records, including explicit revocation
+- a trusted-local-admin acknowledgement gate for authority CLI actions
+- deterministic group suggestions by Context, failure phase, and signal type
+- authorized semantic singleton findings and clustered lower-confidence cases
+- separation of `EVAL_NEEDS_TRIAGE` findings from product semantic findings
+- explicit Finding dismissal with reviewer, timestamp, and reason
+- versioned EvalTargets with result and semantic constraints
+- `DRAFT -> NEEDS_BUSINESS_REVIEW -> APPROVED -> FROZEN` lifecycle enforcement
+- authority re-checks at approval and freeze
+- content hashes that cannot be weakened or rewritten in place
+- `INVALID` and `SUPERSEDED` target terminal paths
+
+Business truth, authority confirmation, target approval, and freezing are
+separate recorded actions. The same MVP user may perform business confirmation
+and approval, but the records remain distinct. The local CLI does not
+authenticate `decided_by`; a deployed API must authenticate and authorize that
+administrator before calling the control service.
+
+Verification:
+
+```text
+SI0/SI1 targeted tests: 32 passed
+full unit suite: 122 passed
+SI1 CLI help and authority acknowledgement smoke: passed
+git diff --check: passed
+forbidden improvement imports: no Codex / DeepSeek / Wren / subprocess / urllib
+```
+
+At the SI1 milestone, no Codex task, candidate workspace, Wren revision,
+database access, approval, publication, merge, or deployment was triggered.
+The following milestone adds the bounded SI2 controller.
+
+### Controlled self-improvement SI2 controller implementation
+
+Implemented the SI2 bounded semantic-candidate controller on 2026-07-16. The
+implementation prepares and verifies jobs without executing by default:
+
+```text
+src/data_agent_improvement/si2.py
+src/data_agent_improvement/codex_executor.py
+```
+
+SI2 now provides:
+
+- `BoundedCodexTask` and `ImprovementJobResult` contracts
+- minimized evidence bundles containing findings, frozen targets, cases,
+  correction feedback, authority decisions, and a generated target eval
+- no copied raw trace payloads or result preview rows
+- per-file evidence hashes plus a frozen manifest hash
+- frozen target hash verification before and after candidate execution
+- separate `EVAL_TARGET_INVALID` and evidence/infrastructure `INCONCLUSIVE`
+  outcomes
+- a signed, short-lived external isolation receipt gate before any executor call
+- a replaceable `SemanticCandidateExecutor` protocol
+- a Context Builder adapter that creates a new candidate through
+  `revise_candidate`, repeats the frozen target suite, runs smoke/regression,
+  and stops at `REVIEW_REQUIRED`
+
+The current real adapter uses the locally installed `codex exec` CLI rather
+than hard-coding an SDK dependency. The installed CLI help verified
+`workspace-write`, `--ephemeral`, `--ignore-user-config`, `--output-schema`,
+JSONL, and non-interactive execution. The OpenAI `openai-docs` manual helper was
+attempted inside and outside the sandbox, but the official manual endpoint
+returned HTTP 403; Docs MCP was unavailable. The executor therefore uses only
+locally verified flags and remains replaceable by a future official SDK
+adapter.
+
+Codex execution hardening:
+
+- candidate workspace is the only Codex writable root owned by the revision
+  workflow
+- evidence and base snapshot are referenced as read-only roots and re-hashed
+  after execution
+- Codex runs ephemerally, ignores user config, receives a JSON output schema,
+  omits `--search`, and uses `approval_policy=never`
+- the child environment is allowlisted and excludes DeepSeek keys and database
+  passwords
+- CLI execution requires `--execute`, a verified `--isolation-receipt`, and
+  external runner-injected HMAC/environment identity
+- the registered base candidate path must match the prepared SI2 base snapshot
+- target result tolerance is enforced by the EvalRunner; required semantic
+  filters use the existing SQL-fragment fallback in the generated target suite
+
+The external isolation receipt is not merely informational. The host sandbox
+must prevent Codex from reading unrelated repository secrets and must enforce
+tool network policy; `workspace-write` and omission of `--search` do not by
+themselves prove filesystem read allowlisting or host-level network denial.
+
+Automated execution verification uses only fake executors; no real Codex task
+was launched:
+
+```text
+SI0/SI1 targeted tests: 32 passed
+SI2 targeted tests: 7 passed
+full unit suite: 130 passed
+Context Builder Codex/revision regressions: passed
+git diff --check: passed
+```
+
+A real prompt-only SI2 acceptance was then completed without `--execute`. The
+fixture used a real failed revenue answer and a scoped business correction:
+
+```text
+trace: trace_295ceda0754b4129b09f8259835f8d82
+observed answer: $1,131.70
+observed filter: status != 'cancelled'
+business truth: only completed orders count as realized revenue
+expected result: 721.80 CNY
+```
+
+The frozen control records were:
+
+```text
+base candidate: candidate_2d8fa11494c24f5785f0a8e33739a598
+feedback: feedback_8f043b062f9c4ce7ace4821cf043ff19
+case: case_769252a510786f9091ef1adb
+authority: authority_b7956645731f47d99b4379edf0a064ac
+finding: finding_81aef970aa8f4856a1791fb568df7f67
+eval target: evaltarget_359988cb167348e4a04eb25903ff1872
+frozen hash: sha256:013bb12ca979b207d5c10177b1fb832ffb6b2cefbe783e0da23b1c5d5b469077
+```
+
+The first prepared Job exposed that an omitted caller-supplied
+`schema_fingerprint` remained null. `prepare_semantic_job` now derives the
+fingerprint from the allowlisted Wren semantic files in the registered base
+snapshot. The CLI also provides a read-only `verify-job` command. The final
+prompt-only Job was:
+
+```text
+job: job_ecc460cc20614938991b9c2c15698d14
+status: PREPARED
+schema fingerprint: sha256:4eaf1703d3ff3b73e135f2e9255f4b3babc468a2ac21a32731c05d579a25abbc
+evidence manifest: sha256:65b9bec587524e819873be1576c35d6b5bac29b0276d1ab328dc43780ec10ff2
+verify-job: ok
+```
+
+The generated target eval preserves expected value `721.8`, tolerance `0.001`,
+required unit `CNY`, forbidden unit `$`, and required completed-status filter.
+The evidence contains no raw trace payload, result preview, or result-row field.
+The Job stayed `PREPARED`, created no Job result, and the Context Registry still
+contained only the registered base candidate with zero revisions. Targeted SI2
+tests remained `7/7`; the full suite remained `130/130`.
+
+### SI2 external isolation receipt gate
+
+The old `--external-isolation-confirmed` boolean was removed after local
+capability testing showed that an operator acknowledgement cannot prove the
+process boundary. SI2 now requires an `IsolationReceipt` that is:
+
+- bound to the immutable Job execution contract, frozen target hash, evidence
+  manifest hash, Wren schema fingerprint, and logical writable root
+- bound to the active `DATA_AGENT_ISOLATION_ENVIRONMENT_ID`
+- HMAC-SHA256 authenticated with a key that is never persisted or inherited by
+  the Codex child
+- valid for no more than 30 minutes
+- explicit that all required filesystem, child-process, network, and credential
+  probes passed
+
+`verify-isolation-receipt` provides a read-only preflight. On accepted
+execution, the controller stores the receipt immutably under the Job control
+directory before entering `RUNNING`. Invalid signatures, expired receipts,
+wrong environment IDs, failed probes, or changed Job/evidence/schema hashes
+leave the Job `PREPARED` and never call the executor.
+
+Local capability verification used `codex-cli 0.144.1`. The CLI supports
+`codex sandbox`, `--sandbox-state-json`, `--sandbox-state-readable-root`, and
+`--sandbox-state-disable-network`. However, a strict read-allowlist probe on the
+current Windows host returned:
+
+```text
+Restricted read-only access requires the elevated Windows sandbox backend
+```
+
+Therefore this machine cannot honestly issue a passing receipt yet. A future
+external CI/container/VM worker or elevated Windows backend must run the probes,
+sign the receipt, and inject its environment ID. No real Docker-isolated SI2
+candidate execution was attempted. Verification after this change: SI2
+`10/10`, full suite `133/133`, and `git diff --check` passed.
+
+### SI2 Docker / CI isolated worker
+
+Implemented the preferred Docker/CI workaround for the Windows strict-read
+backend limitation. Only the Codex editing process enters the container; the
+outer controller still owns candidate creation, frozen evidence verification,
+Wren validation, target/smoke/regression evals, and the `REVIEW_REQUIRED` gate.
+
+```text
+src/data_agent_improvement/docker_worker.py
+infra/si2_codex_worker/Dockerfile
+infra/si2_codex_worker/Dockerfile.proxy
+infra/si2_codex_worker/worker-entrypoint.sh
+infra/si2_codex_worker/squid.conf
+infra/si2_codex_worker/docker-compose.yml
+docs/si2_docker_worker.md
+```
+
+The worker resolves a tag to Docker's immutable image ID and binds the receipt
+to that ID, the internal network, and the proxy endpoint hash. Runtime mounts
+only the copied candidate read/write, minimized evidence read-only, and the
+final-response schema read-only. It does not mount the repository, base
+snapshot, Registry controls, database, Wren home, or host credentials.
+
+The execution-surface decision is now explicit: SI2 uses the pinned
+`codex exec` CLI inside the Docker/CI worker for the MVP. A future verified
+Codex SDK adapter may replace only the invocation/streaming layer behind
+`SemanticCandidateExecutor`. The Docker boundary, signed receipt, frozen target,
+outer evals, review state, and publication controls do not change. The installed
+Windows CLI is not allowed to bypass a missing Docker receipt.
+
+The container uses a read-only root filesystem, UID 10001, dropped Linux
+capabilities, `no-new-privileges`, PID/memory/CPU limits, an ephemeral tmpfs,
+Codex `workspace-write`, `sandbox_workspace_write.network_access=false`,
+`shell_environment_policy.inherit=none`, ignored user config/rules, and no
+approval path. The HMAC/environment secrets never enter the container.
+
+Provider access uses two networks: the Codex worker joins only the internal
+`data-agent-si2-internal` network; the Squid proxy joins that network and a
+provider-egress network. Its ACL permits CONNECT only to `api.openai.com`. The
+no-model probe must prove OpenAI reachability through the proxy, rejection of
+`example.com`, direct-internet denial, denial of a reachable network canary by
+`codex sandbox`, candidate/evidence mount modes, and dummy API-key exclusion
+before signing a receipt.
+
+Offline verification completed:
+
+```text
+Docker/SI2 targeted tests: 18 passed
+full unit suite: 141 passed
+docker compose config: passed
+CLI prepare-docker-isolation help: passed
+git diff --check: passed
+```
+
+Docker Desktop is available with Linux containers and cgroup v2. Direct Docker
+Hub access remained unavailable, but the following build fallback succeeded on
+2026-07-17:
+
+```text
+base images: docker.1panel.live/library/node and /debian
+Debian packages: mirrors.aliyun.com
+npm: registry.npmmirror.com
+worker image: sha256:63339471636cb03da0ff021a5ceb4c842b8f2171bad9c492419215c8a84cdc95
+proxy image: sha256:f35b5ebec10bcc4edd08643e8577b48b7624d7818e2d99f1e43ec6d2d59d9782
+Codex CLI: 0.144.1
+```
+
+The proxy initially exited because Squid's optional ICMP pinger is incompatible
+with `cap_drop: ALL`; disabling the pinger preserved the capability boundary and
+produced a stable proxy. Docker's default seccomp profile also blocked the user
+namespace required by Codex's Linux `bwrap` sandbox. The current compatibility
+setting is `seccomp=unconfined` around a non-root, capability-free, read-only,
+mount-restricted container; the inner Codex sandbox then started successfully.
+A narrow custom seccomp profile remains a hardening follow-up.
+
+Real no-model probes passed candidate/evidence filesystem policy, reachable
+canary network denial by `codex sandbox`, and dummy API-key exclusion from the
+child environment. The provider probe still failed: after DNS cache reset Squid
+established `TCP_TUNNEL/200` to the correct Cloudflare address, but TLS ended in
+`SSL_ERROR_SYSCALL`. This host has no configured system or common local VPN
+proxy. The receipt was correctly not issued, `codex exec` was not started, no
+API key was sent, and the real Job remains `PREPARED`. A corporate/VPN/CI route
+to `api.openai.com` is still required.
+
+Real Codex execution still requires built worker/proxy images, a configured
+Wren/eval environment, the `--execute` gate, and a valid Docker isolation
+receipt. SI2 still cannot
+approve or publish. SI3 engineering worktrees and SI4 release monitoring remain
+unimplemented.
+
+### SI2 development-only Host Session executor
+
+Added an explicit local-development path on 2026-07-20 so prompt and executor
+work can continue using the current host Codex CLI session while isolated
+provider credentials remain unavailable:
+
+```text
+execute-semantic-job-dev
+--execute
+--acknowledge-host-session-development-only
+```
+
+This is not a receipt bypass. The development function verifies the frozen Job
+and evidence before and after execution, but it creates no formal SI2
+`ImprovementJobResult`, stores no isolation receipt, leaves the Job `PREPARED`,
+and reports `development_only=true` plus `release_eligible=false`. The prompt
+also labels every candidate disposable and development-only.
+
+The development executor deliberately loads the current host Codex config and
+authentication. A minimal host-session probe succeeded with the configured
+mirror provider and `gpt-5.6-sol`, confirming that local iteration can proceed.
+The same run also encountered an unrelated host MCP `403`, demonstrating why
+personal config is not an isolation boundary.
+
+Release, CI, and Docker packaging must never copy a developer's `auth.json` or
+silently reuse a personal login. They require a dedicated API key or CI secret,
+the externally isolated worker, passing probes, and a signed receipt. The formal
+`execute-semantic-job` contract remains unchanged.
+
+Verification:
+
+```text
+host-session development probe: passed with gpt-5.6-sol
+SI2/CLI targeted tests: 14 passed
+full unit suite: 144 passed
+execute-semantic-job-dev help: passed
+git diff --check: passed
+```
+
+The first real development-only Job execution completed on 2026-07-20 using
+the current host session:
+
+```text
+job: job_ecc460cc20614938991b9c2c15698d14
+revision: revision_0b0ac7bc002e4b8cad4d70af77d262dc
+candidate: candidate_1ba12b26adb741f2a31f2015d5eabcb0
+Codex CLI: 0.144.6
+provider/model: mirror / gpt-5.6-sol
+Codex execution: passed
+Wren validate/build: passed
+outer evaluation: SMOKE_FAILED
+```
+
+Codex aligned the confirmed SQL example question with the frozen target and
+preserved the evidence-backed SQL:
+
+```sql
+SELECT SUM(total_amount) AS realized_revenue
+FROM orders
+WHERE status = 'completed'
+```
+
+It made no Model or Relationship change and reported no assumption or
+unresolved question. All smoke and three frozen-target repetitions then failed
+because the local StarRocks test server at `127.0.0.1:19030` was not running;
+the generated SQL still contained the required completed-status filter. Treat
+this as an infrastructure-blocked acceptance run, not proof that the semantic
+candidate regressed or passed.
+
+The fail-closed properties held after the real model call: the Improvement Job
+remained `PREPARED`, `verify-job` still passed, the Job directory contained no
+formal result or isolation receipt, and the development report returned
+`formal_result_recorded=false`, `isolation_receipt_used=false`, and
+`release_eligible=false`. The Context candidate initially remained
+`SMOKE_FAILED`; it was not approved or published.
+
+After Docker Desktop was opened interactively, `starrocks_mvp.ps1 -Action Init`
+restored the fixed fixture (`customers=5`, `orders=8`) and Wren
+validate/build/dry-run passed. The existing revision was then retried without
+another Codex call:
+
+```powershell
+.\scripts\starrocks_mvp.ps1 -Action Init
+$env:PYTHONPATH='src'
+.\.venv-wren\python.exe -m data_subagent_context_builder.cli retry-revision-evals `
+  --registry-root data\tmp\si2_realized_revenue_prompt_only\context_registry `
+  --revision revision_0b0ac7bc002e4b8cad4d70af77d262dc `
+  --regression-suite data\tmp\si2_realized_revenue_prompt_only\improvement_registry\jobs\job_ecc460cc20614938991b9c2c15698d14\evidence\target_eval.jsonl `
+  --regression-suite data\tmp\si2_realized_revenue_prompt_only\improvement_registry\jobs\job_ecc460cc20614938991b9c2c15698d14\evidence\target_eval.jsonl `
+  --regression-suite data\tmp\si2_realized_revenue_prompt_only\improvement_registry\jobs\job_ecc460cc20614938991b9c2c15698d14\evidence\target_eval.jsonl `
+  --wren-home data\wren\home `
+  --wren-bin .venv-wren\Scripts\wren.exe
+```
+
+The first database-backed retry passed smoke `3/3` and produced the correct SQL
+and numeric result in all three frozen-target runs, but DeepSeek summarized the
+result as `$721.80`, `721.80`, and `$721.80`. The Wren candidate already stated
+that `orders.total_amount` is denominated in CNY. The actual defect was the
+online runtime interface: SQL generation and repair received `WrenContext`, but
+`summarize_result` received only question, SQL, and rows.
+
+The runtime now has a backward-compatible `summarize_result_with_context`
+adapter method. Existing adapters fall back to their old summarizer; the
+DeepSeek adapter receives bounded Wren semantic context and is instructed to
+preserve explicit unit names and never replace an ISO currency code with a
+symbol. The second retry passed smoke `3/3` and frozen target `3/3`:
+
+```text
+trace_b31d5e059c2449e2899cd892945ffeae: 721.80 CNY
+trace_143309f2f53b46cd8db0b4b29ff04f73: 721.80 CNY
+trace_0de8047490d24222be7b12048253d47d: 721.80 CNY
+candidate/revision: REVIEW_REQUIRED / REVIEW_REQUIRED
+review packet: generated
+```
+
+Development-only release eligibility is now persisted on Context candidates.
+Both candidate and revision transitions fail closed before `APPROVED`, and
+candidate publication also remains unreachable. Older development candidates
+without the structured field are recognized through their `DEVELOPMENT_ONLY`
+provenance. The real candidate loads as `release_eligible=false`; the
+Improvement Job still remains `PREPARED` with no formal result or isolation
+receipt. No approval or publication was performed.
+
+Verification after the fix:
+
+```text
+focused Context/SI2/runtime tests: 53 passed
+full unit suite: 146 passed
+real StarRocks smoke: 3/3 passed
+real frozen target repetitions: 3/3 passed
+```
+
+### Unified outer candidate evaluation contract
+
+Added a deterministic outer evaluation contract on 2026-07-21 for SI2 and the
+future SI3 candidate executors:
+
+```text
+PASS    / ACCEPTANCE_PASSED
+FAIL    / ASSERTION_FAILED
+BLOCKED / INFRASTRUCTURE_UNAVAILABLE
+BLOCKED / EVAL_TARGET_INVALID
+```
+
+The classifier consumes the Context Builder's smoke and regression artifacts;
+Codex does not decide whether its own candidate passed. A completed frozen
+assertion mismatch is `FAIL`, while a database connection failure, timeout, or
+evaluation process failure without a summary is `BLOCKED`. A missing or invalid
+frozen regression suite is also `BLOCKED`, with the distinct
+`EVAL_TARGET_INVALID` reason.
+
+SI2 retains its existing persisted result and Job statuses for compatibility:
+
+```text
+PASS                          -> PASS / REVIEW_REQUIRED
+FAIL                          -> FAIL / FAILED
+BLOCKED + invalid EvalTarget  -> EVAL_TARGET_INVALID
+BLOCKED + infrastructure      -> INCONCLUSIVE
+```
+
+The normalized `candidate_evaluation` is included in development reports and
+formal `ImprovementJobResult.evaluation_summary`. Clarification remains a
+separate `NEEDS_BUSINESS_REVIEW` gate and does not claim that evaluation ran.
+Context Builder may still use its internal `SMOKE_FAILED` state; the outer SI
+contract provides the cross-executor meaning. This change does not add
+automatic SI2-to-SI3 routing or source-code diagnosis.
+
+Verification:
+
+```text
+focused evaluation/SI2 tests: 21 passed
+full unit suite: 155 passed
+git diff --check: passed
+```
+
+### Real outer evaluation contract integration test
+
+Replayed the realized-revenue candidate through the normalized outer evaluator
+on 2026-07-21. All Data Subagent traces, eval runs, reports, and deliberately
+invalid suites were isolated under:
+
+```text
+data/tmp/si2_outer_eval_integration/
+```
+
+The healthy StarRocks run used the existing frozen EvalTarget and development
+candidate. It returned the evidence-backed SQL and answer, passed every frozen
+assertion, and normalized to `PASS / ACCEPTANCE_PASSED`:
+
+```text
+run: 20260721-144551-si2_outer_real_pass
+trace: trace_f19e8be7c5384527b37426ccd0556340
+SQL: SELECT SUM(total_amount) AS realized_revenue
+     FROM orders WHERE status = 'completed'
+answer: The total realized revenue is 721.80 CNY.
+result: 1/1 passed
+```
+
+The same frozen case was then run while only the `data-agent-starrocks`
+container was stopped. SQL generation still produced the correct completed
+filter, but Wren exhausted two repairs with connection error `10061`. The raw
+eval record said `fail`; the outer evaluator correctly distinguished the
+environmental cause and returned `BLOCKED / INFRASTRUCTURE_UNAVAILABLE`:
+
+```text
+run: 20260721-144721-si2_outer_real_blocked
+trace: trace_d7336c0bf46549a3b926e354aefb5e43
+result: 0/1 passed
+outer reason: StarRocks connection unavailable
+```
+
+The command restored the container in a `finally` block, reinitialized the
+fixed fixture, reran Wren validate/build/dry-run, and ended with Docker status
+`running healthy`, `customers=5`, and `orders=8`.
+
+A real database-backed negative acceptance case retained the correct SQL and
+numeric value but deliberately required `USD` and forbade `CNY`. The returned
+answer was `721.80 CNY`, so the outer evaluator returned
+`FAIL / ASSERTION_FAILED`, not `BLOCKED`:
+
+```text
+run: 20260721-144915-si2_outer_real_fail
+trace: trace_28f4935978fa410db5a9efb82e5d1096
+failure: expected USD; CNY was forbidden
+```
+
+Finally, the real Context Builder `run_revision_evals` orchestration received a
+nonexistent frozen regression path. Generated smoke construction succeeded,
+the missing suite was recorded as `Regression suite not found.`, and the outer
+result was `BLOCKED / EVAL_TARGET_INVALID`.
+
+These tests did not rerun Codex or modify the candidate. Improvement Job
+`job_ecc460cc20614938991b9c2c15698d14` remains `PREPARED`; candidate
+`candidate_1ba12b26adb741f2a31f2015d5eabcb0` remains `REVIEW_REQUIRED`; the Job
+directory still has no formal result or isolation receipt. No approval,
+publication, merge, or deployment was performed.
+
+### Controlled self-improvement SI3 development controller
+
+Implemented the first development-only SI3 source-code candidate controller on
+2026-07-21:
+
+```text
+FROZEN EvalTarget + verified business authority
+-> fixed Git base commit and tree fingerprint
+-> linked Git worktree on local branch si3/job_<id>
+-> bounded Codex CLI source edit
+-> outer evaluation
+-> local patch and PR candidate packet
+-> human engineering review
+```
+
+The implementation is deliberately narrower than a production source release
+system. It adds `SOURCE_CODE` Jobs, allowed/forbidden path enforcement, Git
+history checks, a structured Codex final response, sanitized command execution,
+and normalized outer evaluation. A passing candidate produces
+`artifacts/pr_candidate.patch` and `artifacts/pr_candidate.json`, but remains
+`development_only=true` and `release_eligible=false`. The Improvement Job stays
+`PREPARED`; no formal isolation receipt or JobResult is created. The controller
+does not commit, push, open a remote PR, approve, merge, deploy, diagnose root
+cause, or automatically route SI2 failures into SI3.
+
+The source evaluation commands are now part of the frozen Job contract rather
+than execution-time CLI input. `prepare-source-job` writes
+`control/source_evaluation_plan.json`, stores its canonical SHA-256 in
+`job.data_identity.evaluation_plan_sha256`, and derives `required_suites` from
+the plan. `execute-source-job-dev` accepts no replacement suite commands; it
+loads the frozen plan and fails closed if the file, hash, schema, or suite names
+change. A regression test verifies that even replacing a command with another
+successful command invalidates the Job before Codex or outer evaluation can be
+trusted.
+
+Current development command surface:
+
+```text
+prepare-source-job
+  --eval-target <frozen target>
+  --repository-root .
+  --base-ref HEAD
+  --allowed-path "src/**"
+  --suite-command-json '<name/args/timeout/non-secret-environment JSON>'
+
+execute-source-job-dev
+  --job <job id>
+  --execute
+  --acknowledge-host-session-development-only
+```
+
+Development execution may reuse the current host Codex CLI session. This is
+explicitly not the release path. Docker/CI packaging must use a separately
+configured API key or CI secret, stronger read/write mounts, a signed isolation
+receipt, and the formal result state machine before any source candidate can be
+release eligible.
+
+Verification:
+
+```text
+focused SI3/evaluator/CLI tests: 18 passed
+full unit suite: 165 passed
+prepare-source-job and execute-source-job-dev help smoke: passed
+git diff --check: passed
+```
+
+At that controller-only milestone, no real source-changing Codex candidate had
+yet been executed. The following integration test records the first real run.
+
+### Real minimal SI3 source candidate integration test
+
+Ran the first real source-changing SI3 development case on 2026-07-21 using the
+current host Codex CLI session. The isolated fixture is under:
+
+```text
+data/tmp/si3_minimal_real/
+```
+
+The committed baseline repository intentionally implemented realized revenue
+by summing every order. Its frozen business truth required only `completed`
+orders and the CNY unit. Before Codex execution, both deterministic tests failed:
+
+```text
+no completed orders: expected 0, observed 13.00
+mixed statuses: expected 200.75, observed 1229.75
+baseline result: 0/2 passed
+```
+
+The real control chain created a correction-bearing FeedbackRecord, scoped
+authority confirmation, singleton semantic Finding, reviewed and frozen
+EvalTarget, fixed Git base commit, frozen evaluation plan, and SOURCE_CODE Job:
+
+```text
+trace: trace_1be9bda3d13347368b02f7773d09fb18
+feedback: feedback_db791199478c4cb097ab245ba95db6d4
+finding: finding_5cad5348e00645ef8b104f1d30f3f185
+eval target: evaltarget_2f734bb7c9f3480a8c54ceb333e6f486
+job: job_08dfc05e631f4dc09c65cef7f8c221fd
+base commit: a338e1bb4373429c205308b67c22396671c1857c
+evaluation plan: sha256:acfe938c7e471856235e7fd65eb687e34022ae770df60fb9e4e0078b9481c992
+```
+
+Codex ran for about 120 seconds in the linked worktree. It changed only
+`src/revenue.py`, preserving the function signature and adding the missing
+`order.get("status") == "completed"` filter. It did not modify tests or Git
+history. The controller reran the frozen outer command with a sanitized
+environment and normalized the result to:
+
+```text
+candidate: sourcecandidate_7ae42557d7304ddca843e835574bea8c
+changed paths: src/revenue.py
+outer evaluation: PASS / ACCEPTANCE_PASSED
+candidate result: 2/2 passed
+patch: artifacts/pr_candidate.patch
+patch SHA-256: sha256:5aa572493c9fa328f750c772d1ee0688b45123dae33d8e60626385cf2e30eb49
+```
+
+Independent post-run verification confirmed that the worktree still passes
+`2/2`, the frozen Job integrity check returns `ok=true`, the worktree HEAD still
+equals the base commit, and the original repository remains clean and still
+fails `2/2`. This proves the pass came from the isolated source edit rather than
+test weakening or baseline mutation.
+
+The candidate remains development-only:
+
+```text
+Job status: PREPARED
+formal result: absent
+isolation receipt: absent
+release_eligible: false
+commit/push/remote PR/approval/merge/deploy: not performed
+```
+
+Windows pitfall: files created through the workspace sandbox may be owned by a
+different local security principal from the process running Git, causing Git's
+`dubious ownership` check. The demo used a process-local `safe.directory`
+environment override scoped to the exact fixture repository. It did not change
+the user's global Git configuration. A Docker/CI worker should avoid this host
+ownership mismatch by creating and operating the repository inside one worker
+identity.
+
+### SI3 RoutingDecision preflight gate
+
+Added an explicit repair-layer gate on 2026-07-22 after the real minimal SI3
+case showed that a source edit can pass frozen tests even when the underlying
+rule would normally belong in Wren Context.
+
+Outer evaluation and routing now have separate contracts:
+
+```text
+RoutingDecision: is SOURCE_CODE the reviewed and evidenced repair layer?
+outer evaluation: does the resulting candidate pass the frozen acceptance contract?
+```
+
+`RoutingDecision` is an immutable Improvement Store record bound to one Finding,
+one frozen EvalTarget, one target type, a reviewer and rationale, and typed
+evidence. Every SOURCE_CODE route requires at least one of:
+
+```text
+SOURCE_REPRODUCTION
+POST_CONTEXT_FAILURE
+STRUCTURAL_SOURCE_DEFECT
+```
+
+If the Finding is semantic or ambiguous (`BUSINESS_SEMANTIC_GAP`, `CONTEXT_GAP`,
+`SQL_GENERATION_DEFECT`, `SUMMARIZATION_GAP`, or `UNKNOWN`), it must additionally
+provide `CONTEXT_RULE_VERIFIED` or `GENERATED_SQL_VERIFIED`. An
+explicitly source-owned behavior may instead provide
+`SOURCE_CONTRACT_OWNERSHIP_VERIFIED`, but it still also requires source failure
+evidence. An `EVAL_TARGET_QUALITY` Finding cannot route to SI3 and must revise
+the target.
+
+`prepare-source-job` now requires `--routing-decision`. It packages
+`routing_decision.json` into the read-only manifested evidence bundle, stores
+its canonical SHA-256 in the Job, and records the decision ID on the Job. Job
+integrity fails closed if the record is missing, changed, points to a different
+Finding/EvalTarget, selects WREN_CONTEXT, or no longer satisfies the source
+evidence rules. The CLI requires `--project-routing-confirmed` when creating a
+decision because the local process records but does not authenticate the
+reviewer.
+
+Current commands:
+
+```text
+create-routing-decision
+list-routing-decisions
+show-routing-decision
+prepare-source-job --routing-decision <routing_id>
+```
+
+The earlier real minimal Job predates this gate. Its patch remains valid as
+historical development evidence, but the old Job intentionally fails the new
+integrity contract because it has no RoutingDecision. A fresh execution must
+create a reviewed decision rather than silently grandfathering the old route.
+
+Verification:
+
+```text
+focused routing/SI3/evaluator/CLI tests: 23 passed
+full unit suite: 170 passed
+RoutingDecision and prepare-source-job CLI help smoke: passed
+git diff --check: passed
+```
+
+### Two-stage RoutingProposal and human confirmation gate
+
+Implemented the proposal/review split on 2026-07-22 so Codex diagnostic output
+cannot become executable SI2/SI3 authority directly:
+
+```text
+Codex or caller -> immutable RoutingProposal
+deterministic controller -> READY_FOR_REVIEW or DIAGNOSIS_REQUIRED
+explicit human confirmation -> hash-bound RoutingDecision
+RoutingDecision -> SI2 WREN_CONTEXT Job or SI3 SOURCE_CODE Job
+```
+
+`RoutingProposal` records one Finding and frozen EvalTarget, the proposed target
+type, typed evidence, proposer, rationale, validation policy, validation errors,
+and timestamp. Evidence-insufficient proposals remain useful audit records with
+`DIAGNOSIS_REQUIRED`, but confirmation fails closed. Confirmation re-runs the
+deterministic routing policy and creates a separate `RoutingDecision` containing
+the confirmer and confirmation rationale plus the canonical proposal SHA-256.
+Job integrity rechecks the proposal hash and decision/proposal identity, target,
+type, and evidence. A manually modified confirmed proposal therefore invalidates
+the route.
+
+New CLI surface:
+
+```text
+create-routing-proposal
+list-routing-proposals
+show-routing-proposal
+confirm-routing-proposal --project-routing-confirmed
+```
+
+The existing `create-routing-decision` command remains an explicitly documented
+trusted-local-admin compatibility shortcut. It should not be used by normal
+automated workflows. The local CLI records actor strings but does not
+authenticate them; a deployed API/CI controller must authenticate and authorize
+the human confirmer.
+
+SI2 Job preparation now also requires `routing_decision_id`, packages
+`routing_decision.json` into its manifested evidence, records the canonical
+decision hash, and fails closed on a missing, changed, wrong-target, or
+proposal-invalid route. This closes the previous mismatch where the CLI passed
+`--routing-decision` but the Python SI2 controller did not accept it. The common
+evidence-manifest check remains target-neutral; SI2 and SI3 apply their own
+WREN_CONTEXT and SOURCE_CODE routing rules respectively.
+
+The controller currently validates evidence structure and allowed type
+combinations, not the truth of every evidence summary. For example, the
+presence of `GENERATED_SQL_VERIFIED` is checked, but Wren is not yet rerun by a
+deterministic evidence probe. The next hardening step is to add signed or
+reproducible probes for Context fingerprints, generated SQL, source
+reproduction, and post-Context failure. Source-contract ownership must remain
+an engineering-reviewer assertion rather than a Codex self-issued fact.
+
+Verification:
+
+```text
+focused SI2/SI3/routing/CLI tests: 33 passed
+full unit suite: 175 passed
+RoutingProposal create/confirm CLI help smoke: passed
+git diff --check: passed
+```
 
 ### Main Agent orchestration architecture note
 
@@ -1960,6 +2904,11 @@ depending on the console encoding. The file contents are still valid UTF-8.
 
 `deepseek_apikey.txt` is local-only and ignored by `.gitignore`. Do not print or
 copy it into documentation, traces, commits, or screenshots.
+
+Before the first GitHub push on 2026-07-22, the ignore rules were broadened to
+cover any local `*apikey*.txt` file and COMP7706 draft logbooks. This prevents
+alternate credential files and potentially personal practicum drafts from
+being staged accidentally; reviewed presentation artifacts remain opt-in.
 
 ### DeepSeek Summary JSON Can Be Malformed
 

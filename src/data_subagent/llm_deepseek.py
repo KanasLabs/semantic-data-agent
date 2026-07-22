@@ -76,17 +76,39 @@ class DeepSeekLLMAdapter(LLMAdapter):
         sql: str,
         rows: list[dict[str, Any]],
     ) -> tuple[str, dict[str, Any], float]:
+        return self._summarize_result(question, sql, rows, context=None)
+
+    def summarize_result_with_context(
+        self,
+        question: str,
+        sql: str,
+        rows: list[dict[str, Any]],
+        context: WrenContext,
+    ) -> tuple[str, dict[str, Any], float]:
+        return self._summarize_result(question, sql, rows, context=context)
+
+    def _summarize_result(
+        self,
+        question: str,
+        sql: str,
+        rows: list[dict[str, Any]],
+        context: WrenContext | None,
+    ) -> tuple[str, dict[str, Any], float]:
         row_preview = rows[:20]
         try:
             payload = self._json_chat(
                 system=(
                     "You summarize SQL query results for a business user. "
+                    "Use the Wren semantic context as authoritative for units and business labels. "
+                    "Preserve explicitly declared unit names exactly and never replace an ISO "
+                    "currency code with a currency symbol. If no unit is declared, do not guess one. "
                     "Return JSON with keys answer, chart_spec, confidence. "
                     "Keep chart_spec compact and use an empty object if no chart is useful."
                 ),
                 user=(
                     f"Question: {question}\nSQL:\n{sql}\n"
-                    f"Rows JSON:\n{json.dumps(row_preview, ensure_ascii=False)}"
+                    f"Rows JSON:\n{json.dumps(row_preview, ensure_ascii=False)}\n"
+                    f"Wren semantic context:\n{_summary_context_text(context)}"
                 ),
                 max_tokens=900,
             )
@@ -236,3 +258,21 @@ def _fallback_summary(rows: list[dict[str, Any]]) -> str:
         if len(values) == 1:
             return str(values[0])
     return f"Query returned {len(rows)} row(s)."
+
+
+def _summary_context_text(context: WrenContext | None, max_chars: int = 16000) -> str:
+    if context is None:
+        return "(not provided)"
+    text = context.text.strip()
+    if not text:
+        text = json.dumps(
+            {
+                "models": context.raw.get("models", []),
+                "relationships": context.raw.get("relationships", []),
+                "views": context.raw.get("views", []),
+            },
+            ensure_ascii=False,
+        )
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n[semantic context truncated]"
