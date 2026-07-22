@@ -24,8 +24,10 @@ data/wren/**/.wren/
 data/wren/**/target/
 data/wren/**/AGENTS.md
 data/wren/**/onboarding/codex_last_message.md
+data/wren/**/onboarding/codex_last_messages/
 data/wren/**/onboarding/generate_mdl_prompt.md
 data/wren/**/onboarding/prompts/
 data/wren/**/onboarding/starrocks_connection.yml
+data/wren/**/onboarding/validation/
 data/wren/bird_*.duckdb
 data/wren/bird_*_wren_project/
