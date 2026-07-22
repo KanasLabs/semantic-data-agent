@@ -39,6 +39,11 @@ high-confidence credential-pattern scan: no real secrets found
 git diff --check: passed
 ```
 
+The first pull-request run exposed a workflow-permission pitfall rather than a
+secret finding: `gitleaks-action` needs `pull-requests: read` to inspect PR
+commits. The workflow grants that read-only permission in addition to
+`contents: read`; it does not receive write access.
+
 ### First GitHub milestone preparation
 
 Prepared the first remote-ready project milestone on 2026-07-22. The selected
