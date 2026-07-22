@@ -10,6 +10,35 @@ but current.
 The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
 Builder implementation.
 
+### Repository documentation and secret-scan hygiene
+
+Prepared a repository hygiene update on 2026-07-22. Added a root `README.md`
+for the three workstreams and a curated `docs/README.md` index that separates
+reviewable architecture/setup documentation from internal engineering memory.
+The current Private repository keeps both categories under version control;
+the engineering-memory document requires another privacy and relevance review
+before any future public release.
+
+Removed user-specific absolute Windows paths from tracked documentation and the
+TPC-H onboarding report. Added a GitHub Actions Gitleaks workflow for pushes to
+`master`, pull requests, and manual runs. Local API-key files, `.env`, runtime
+traces, eval outputs, local Wren state, and improvement registry data remain
+excluded by `.gitignore`.
+
+Production onboarding/discovery snapshots must be reviewed separately because
+schema samples or observed values may contain real business data even when no
+credential is present. The committed TPC-H snapshot contains synthetic demo
+data only.
+
+Verification:
+
+```text
+full unit suite: 175 passed
+tracked user-specific absolute-path scan: no matches
+high-confidence credential-pattern scan: no real secrets found
+git diff --check: passed
+```
+
 ### First GitHub milestone preparation
 
 Prepared the first remote-ready project milestone on 2026-07-22. The selected
@@ -2333,7 +2362,7 @@ $env:PYTHONPATH='src'
   --report-path data\tmp\context_builder_bird_real\onboarding_report.md `
   --execute `
   --max-repair-rounds 1 `
-  --codex-bin <user-home>\AppData\Roaming\npm\codex.cmd `
+  --codex-bin codex.cmd `
   --force
 ```
 
@@ -2368,9 +2397,9 @@ relationships after checking the runtime data.
 
 New fixes from the real run:
 
-- `--codex-bin` may need `<user-home>\AppData\Roaming\npm\codex.cmd` on
-  Windows because Python subprocess cannot reliably launch the npm PowerShell
-  shim `codex.ps1` by the bare name `codex`.
+- `--codex-bin` may need the full path returned by `(Get-Command codex).Source`
+  on Windows because Python subprocess cannot reliably launch the npm
+  PowerShell shim `codex.ps1` by the bare name `codex`.
 - Context Builder CLI now reconfigures stdout to UTF-8 so printing JSON with
   symbols such as `€`, `—`, or `→` does not fail under a GBK console.
 - Skill-first reports now refresh model and relationship counts from the actual
@@ -2637,10 +2666,10 @@ wren_project_dir: data/wren/bird_debit_card_specializing_wren_project
 Wren verification:
 
 ```powershell
-$env:WREN_HOME='<project-root>\data\wren\home'
-<project-root>\.venv-wren\Scripts\wren.exe context validate
-<project-root>\.venv-wren\Scripts\wren.exe context build
-<project-root>\.venv-wren\Scripts\wren.exe dry-run --sql "select count(*) as customer_count from customers"
+$env:WREN_HOME = (Resolve-Path 'data\wren\home').Path
+.\.venv-wren\Scripts\wren.exe context validate
+.\.venv-wren\Scripts\wren.exe context build
+.\.venv-wren\Scripts\wren.exe dry-run --sql "select count(*) as customer_count from customers"
 ```
 
 Result:
