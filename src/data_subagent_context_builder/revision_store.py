@@ -187,6 +187,7 @@ class CandidateRecord:
     updated_at: str
     revision_id: str | None = None
     provenance: list[Provenance] = field(default_factory=list)
+    release_eligible: bool = True
 
 
 @dataclass
@@ -278,6 +279,7 @@ class RevisionStore:
         base_candidate_id: str | None = None,
         revision_id: str | None = None,
         provenance: list[Provenance] | None = None,
+        release_eligible: bool = True,
     ) -> CandidateRecord:
         _validate_identifier("context_id", context_id)
         if version < 1:
@@ -298,6 +300,7 @@ class RevisionStore:
             base_candidate_id=base_candidate_id,
             revision_id=revision_id,
             provenance=list(provenance or []),
+            release_eligible=release_eligible,
             created_at=now,
             updated_at=now,
         )
@@ -319,6 +322,10 @@ class RevisionStore:
         if expected_status is not None and record.status != expected_status:
             raise StaleBaseVersionError(
                 f"Candidate {candidate_id} is {record.status.value}, expected {expected_status.value}."
+            )
+        if target in {CandidateStatus.APPROVED, CandidateStatus.PUBLISHED} and not record.release_eligible:
+            raise InvalidTransitionError(
+                f"Candidate {candidate_id} is development-only and not release eligible."
             )
         if (
             record.status == CandidateStatus.REVIEW_REQUIRED
@@ -344,6 +351,7 @@ class RevisionStore:
         requested_scope: list[str] | None = None,
         risk_level: RiskLevel = RiskLevel.MEDIUM,
         candidate_project_path: Path | None = None,
+        release_eligible: bool = True,
     ) -> tuple[ChangeRequest, CandidateRecord]:
         instruction = user_instruction.strip()
         if not instruction:
@@ -373,6 +381,7 @@ class RevisionStore:
             base_candidate_id=base.candidate_id,
             revision_id=revision_id,
             provenance=[provenance],
+            release_eligible=release_eligible,
         )
         now = _utc_now()
         request = ChangeRequest(
@@ -422,6 +431,12 @@ class RevisionStore:
             raise InvalidTransitionError(
                 f"Revision {revision_id} requires a completed approval task."
             )
+        if target == RevisionStatus.APPROVED:
+            candidate = self.get_candidate(request.candidate_id)
+            if not candidate.release_eligible:
+                raise InvalidTransitionError(
+                    f"Candidate {candidate.candidate_id} is development-only and not release eligible."
+                )
         _require_transition("revision", request.status, target, _REVISION_TRANSITIONS)
         request.status = target
         request.updated_at = _utc_now()
@@ -733,6 +748,12 @@ class RevisionStore:
 
 
 def _candidate_from_dict(data: dict[str, Any]) -> CandidateRecord:
+    provenance = [_provenance_from_dict(item) for item in data.get("provenance", [])]
+    release_eligible = data.get("release_eligible")
+    if release_eligible is None:
+        release_eligible = not any(
+            "DEVELOPMENT_ONLY" in item.statement for item in provenance
+        )
     return CandidateRecord(
         candidate_id=str(data["candidate_id"]),
         context_id=str(data["context_id"]),
@@ -741,7 +762,8 @@ def _candidate_from_dict(data: dict[str, Any]) -> CandidateRecord:
         status=CandidateStatus(data["status"]),
         base_candidate_id=data.get("base_candidate_id"),
         revision_id=data.get("revision_id"),
-        provenance=[_provenance_from_dict(item) for item in data.get("provenance", [])],
+        provenance=provenance,
+        release_eligible=bool(release_eligible),
         created_at=str(data["created_at"]),
         updated_at=str(data["updated_at"]),
     )

@@ -25,6 +25,85 @@ from data_agent_improvement.store import ImprovementStore
 
 
 class ImprovementCliTest(unittest.TestCase):
+    def test_routing_proposal_confirmation_requires_explicit_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            args = [
+                "data-agent-improvement",
+                "confirm-routing-proposal",
+                "--project-root",
+                str(root),
+                "--registry-root",
+                "registry",
+                "--routing-proposal",
+                "routeproposal_" + "2" * 32,
+                "--confirmed-by",
+                "engineering-reviewer",
+                "--rationale",
+                "Reviewed evidence supports the proposed route.",
+            ]
+            with patch("sys.argv", args):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "project-routing-confirmed",
+                ):
+                    main()
+
+    def test_routing_decision_requires_explicit_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            args = [
+                "data-agent-improvement",
+                "create-routing-decision",
+                "--project-root",
+                str(root),
+                "--registry-root",
+                "registry",
+                "--eval-target",
+                "evaltarget_" + "3" * 32,
+                "--target-type",
+                "SOURCE_CODE",
+                "--evidence-json",
+                json.dumps(
+                    {
+                        "evidence_type": "SOURCE_REPRODUCTION",
+                        "evidence_id": "source-test",
+                        "summary": "A source unit test reproduces the failure.",
+                    }
+                ),
+                "--decided-by",
+                "engineering-reviewer",
+                "--rationale",
+                "Context is correct and source code still fails.",
+            ]
+            with patch("sys.argv", args):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "project-routing-confirmed",
+                ):
+                    main()
+
+    def test_source_development_execution_requires_explicit_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            args = [
+                "data-agent-improvement",
+                "execute-source-job-dev",
+                "--project-root",
+                str(root),
+                "--registry-root",
+                "registry",
+                "--job",
+                "job_" + "2" * 32,
+                "--execute",
+            ]
+            with patch("sys.argv", args):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "acknowledge-host-session-development-only",
+                ):
+                    main()
+
     def test_development_execution_requires_explicit_acknowledgement(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)

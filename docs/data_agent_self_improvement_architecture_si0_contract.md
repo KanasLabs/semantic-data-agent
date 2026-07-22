@@ -1,7 +1,7 @@
 # Data Agent Self-Improvement Architecture & SI0 Contract
 
-Status: SI0-SI1 implemented; SI2 controller implemented, real execution pending; SI3-SI4 proposed
-Date: 2026-07-16
+Status: SI0-SI3 development controllers implemented; real SI2/SI3 development execution verified; formal SI3 Docker/CI and SI4 pending
+Date: 2026-07-22
 Scope: Background controlled self-improvement for the Data Agent system
 
 ## 1. Executive Decision
@@ -1249,11 +1249,46 @@ SI0 is complete when:
 
 ### SI3: Engineering Worktree And Pull Request
 
+Repair-layer selection uses two immutable records rather than allowing a Codex
+diagnosis to become executable authority directly:
+
+```text
+Codex or another investigator creates RoutingProposal
+-> deterministic controller records READY_FOR_REVIEW or DIAGNOSIS_REQUIRED
+-> authenticated human reviews the proposal
+-> confirmation creates hash-bound RoutingDecision
+-> SI2 or SI3 Job preparation accepts the RoutingDecision only
+```
+
+`RoutingProposal` preserves the proposed target, typed evidence, rationale,
+proposer identity, validation policy, and all deterministic validation errors.
+Insufficient evidence is stored as `DIAGNOSIS_REQUIRED` but cannot be
+confirmed. A `READY_FOR_REVIEW` proposal also cannot start a Job by itself.
+Human confirmation creates a separate `RoutingDecision` that records the
+confirmer and confirmation rationale and binds the exact proposal with
+canonical SHA-256. The controller revalidates the proposal at confirmation and
+Job integrity time. The local CLI cannot authenticate identities; deployed
+API/CI surfaces must authenticate the confirmer before calling this service.
+
+The direct `create-routing-decision` CLI remains a trusted-local-admin
+compatibility shortcut for existing development records. Normal automated
+workflows should use proposal, review, and confirmation.
+
+- require an immutable reviewed `RoutingDecision` before creating a SOURCE_CODE Job
+- require source reproduction, post-Context failure, or structural source-defect evidence
+- for semantic or ambiguous Findings, additionally prove that the Context rule or generated SQL is already correct, or that a reviewed source contract explicitly owns the behavior
 - create an isolated writable Git worktree for prompt/code tasks
 - provide production traces and accepted eval targets as read-only evidence
-- allow bounded Codex changes to schema, mapper, prompt, adapter, or tests
+- allow bounded Codex changes only to explicitly allowlisted source paths
 - require unit tests, frozen target eval, full regression, and engineering review
 - output a patch or pull request candidate, never a direct deployment
+
+Passing outer evaluation proves that a candidate satisfies the frozen acceptance
+contract. It does not prove that the selected repair layer was appropriate. The
+RoutingDecision is therefore a separate preflight record, is packaged into the
+read-only evidence bundle, and is hash-bound to the Job. When it originates
+from a RoutingProposal, the proposal is also hash-bound and rechecked. A semantic Finding
+cannot enter SI3 merely because a source edit could make its tests pass.
 
 ### SI4: Release Health And Rollback
 
@@ -1278,6 +1313,12 @@ confirmed business truth:
 expected candidate answer:
   721.80 CNY
 ```
+
+Before an SI3 variant of this case may start, the reviewed RoutingDecision must
+show both that Wren Context or generated SQL already expresses the completed-only
+rule, or that a reviewed source contract owns that behavior, and that a
+source-level or post-Context defect still reproduces the failure.
+Without both forms of evidence, the case remains SI2 or `DIAGNOSIS_REQUIRED`.
 
 The future loop passes only when a correction pair links to the original trace,
 the actor is authorized for the Context and business scope, the case becomes a

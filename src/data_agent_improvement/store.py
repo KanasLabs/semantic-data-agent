@@ -20,6 +20,9 @@ from .models import (
     ImprovementJobResult,
     IsolationReceipt,
     JobStatus,
+    RoutingDecision,
+    RoutingProposal,
+    RoutingProposalStatus,
     TriageStatus,
     validate_identifier,
 )
@@ -197,6 +200,102 @@ class ImprovementStore:
             records = [record for record in records if record.status == parsed_status]
         return records
 
+    def create_routing_decision(self, decision: RoutingDecision) -> Path:
+        path = self._routing_decision_path(decision.routing_decision_id)
+        if path.exists():
+            raise ImmutableRecordError(
+                f"Routing decision already exists: {decision.routing_decision_id}"
+            )
+        self._write_json(path, decision.to_dict())
+        return path
+
+    def get_routing_decision(self, routing_decision_id: str) -> RoutingDecision:
+        return RoutingDecision.from_dict(
+            self._read_json(self._routing_decision_path(routing_decision_id))
+        )
+
+    def list_routing_decisions(
+        self,
+        *,
+        finding_id: str | None = None,
+        eval_target_id: str | None = None,
+        target_type: str | None = None,
+    ) -> list[RoutingDecision]:
+        if finding_id is not None:
+            validate_identifier("finding_id", finding_id, "finding", 32)
+        if eval_target_id is not None:
+            validate_identifier("eval_target_id", eval_target_id, "evaltarget", 32)
+        root = self.registry_root / "routing_decisions"
+        if not root.exists():
+            return []
+        records = [
+            RoutingDecision.from_dict(self._read_json(path))
+            for path in sorted(root.glob("routing_*.json"))
+        ]
+        if finding_id is not None:
+            records = [record for record in records if record.finding_id == finding_id]
+        if eval_target_id is not None:
+            records = [
+                record
+                for record in records
+                if record.eval_target_id == eval_target_id
+            ]
+        if target_type is not None:
+            records = [
+                record for record in records if record.target_type.value == target_type
+            ]
+        return records
+
+    def create_routing_proposal(self, proposal: RoutingProposal) -> Path:
+        path = self._routing_proposal_path(proposal.routing_proposal_id)
+        if path.exists():
+            raise ImmutableRecordError(
+                f"Routing proposal already exists: {proposal.routing_proposal_id}"
+            )
+        self._write_json(path, proposal.to_dict())
+        return path
+
+    def get_routing_proposal(self, routing_proposal_id: str) -> RoutingProposal:
+        return RoutingProposal.from_dict(
+            self._read_json(self._routing_proposal_path(routing_proposal_id))
+        )
+
+    def list_routing_proposals(
+        self,
+        *,
+        finding_id: str | None = None,
+        eval_target_id: str | None = None,
+        status: str | None = None,
+        target_type: str | None = None,
+    ) -> list[RoutingProposal]:
+        if finding_id is not None:
+            validate_identifier("finding_id", finding_id, "finding", 32)
+        if eval_target_id is not None:
+            validate_identifier("eval_target_id", eval_target_id, "evaltarget", 32)
+        parsed_status = RoutingProposalStatus(status) if status is not None else None
+        root = self.registry_root / "routing_proposals"
+        if not root.exists():
+            return []
+        records = [
+            RoutingProposal.from_dict(self._read_json(path))
+            for path in sorted(root.glob("routeproposal_*.json"))
+        ]
+        if finding_id is not None:
+            records = [record for record in records if record.finding_id == finding_id]
+        if eval_target_id is not None:
+            records = [
+                record for record in records if record.eval_target_id == eval_target_id
+            ]
+        if parsed_status is not None:
+            records = [record for record in records if record.status == parsed_status]
+        if target_type is not None:
+            records = [
+                record
+                for record in records
+                if record.proposed_target_type.value == target_type
+            ]
+        return records
+
     def replace_eval_target(
         self,
         target: EvalTarget,
@@ -333,6 +432,24 @@ class ImprovementStore:
         validate_identifier("eval_target_id", eval_target_id, "evaltarget", 32)
         return self.registry_root / "eval_targets" / f"{eval_target_id}.json"
 
+    def _routing_decision_path(self, routing_decision_id: str) -> Path:
+        validate_identifier(
+            "routing_decision_id",
+            routing_decision_id,
+            "routing",
+            32,
+        )
+        return self.registry_root / "routing_decisions" / f"{routing_decision_id}.json"
+
+    def _routing_proposal_path(self, routing_proposal_id: str) -> Path:
+        validate_identifier(
+            "routing_proposal_id",
+            routing_proposal_id,
+            "routeproposal",
+            32,
+        )
+        return self.registry_root / "routing_proposals" / f"{routing_proposal_id}.json"
+
     def _job_path(self, job_id: str) -> Path:
         return self.job_dir(job_id) / "job.json"
 
@@ -455,6 +572,7 @@ def _job_content(job: BoundedCodexTask) -> tuple[Any, ...]:
         job.database_access,
         job.network_access,
         job.created_at,
+        job.routing_decision_id,
     )
 
 

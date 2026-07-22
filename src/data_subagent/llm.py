@@ -37,6 +37,15 @@ class LLMAdapter(ABC):
     ) -> tuple[str, dict[str, Any], float]:
         raise NotImplementedError
 
+    def summarize_result_with_context(
+        self,
+        question: str,
+        sql: str,
+        rows: list[dict[str, Any]],
+        context: WrenContext,
+    ) -> tuple[str, dict[str, Any], float]:
+        return self.summarize_result(question, sql, rows)
+
 
 class StaticLLMAdapter(LLMAdapter):
     def __init__(self, sql: str) -> None:

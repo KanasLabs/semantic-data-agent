@@ -105,6 +105,10 @@ def approve_candidate(
 ) -> dict[str, Any]:
     active_store = store or RevisionStore(registry_root)
     candidate = active_store.get_candidate(candidate_id)
+    if not candidate.release_eligible:
+        raise InvalidTransitionError(
+            f"Candidate {candidate_id} is development-only and not release eligible."
+        )
     if candidate.status != CandidateStatus.REVIEW_REQUIRED or not candidate.revision_id:
         raise InvalidTransitionError(
             f"Candidate {candidate_id} must be REVIEW_REQUIRED before approval."

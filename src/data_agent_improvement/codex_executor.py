@@ -10,6 +10,11 @@ from data_subagent_context_builder.revision_eval import RevisionEvalRunner
 from data_subagent_context_builder.revision_store import RevisionStore, RiskLevel
 from data_subagent_context_builder.skill_onboarding import WrenRunner
 
+from .evaluation import (
+    CandidateEvaluationReason,
+    CandidateEvaluationStatus,
+    classify_candidate_evaluation,
+)
 from .models import BoundedCodexTask
 from .si2 import CandidateExecution
 
@@ -99,6 +104,7 @@ class ContextBuilderSemanticExecutor:
             wren_bin=self.wren_bin,
             requested_scope=job.allowed_paths,
             risk_level=RiskLevel(job.risk_level),
+            release_eligible=not self.host_session_development,
             smoke_sql=self.smoke_sql,
             execute_codex=True,
             codex_bin=self.codex_bin,
@@ -117,19 +123,40 @@ class ContextBuilderSemanticExecutor:
             codex_runner_factory=runner_factory,
             eval_runner=self.eval_runner,
         )
-        revision_status = str(result.get("revision_status") or "")
-        if revision_status == "CLARIFICATION_REQUIRED":
-            outcome = "clarification_required"
+        return _candidate_execution_from_result(result)
+
+
+def _candidate_execution_from_result(result: dict[str, Any]) -> CandidateExecution:
+    revision_status = str(result.get("revision_status") or "")
+    if revision_status == "CLARIFICATION_REQUIRED":
+        evaluation = None
+        outcome = "clarification_required"
+    else:
+        evaluation = classify_candidate_evaluation(dict(result.get("eval") or {}))
+        if evaluation.status == CandidateEvaluationStatus.BLOCKED:
+            outcome = (
+                "eval_target_invalid"
+                if evaluation.reason == CandidateEvaluationReason.EVAL_TARGET_INVALID
+                else "inconclusive"
+            )
         else:
-            outcome = "completed" if result.get("ok") else "failed"
-        return CandidateExecution(
-            ok=bool(result.get("ok")),
-            outcome=outcome,
-            revision_id=_optional_string(result.get("revision_id")),
-            candidate_id=_optional_string(result.get("candidate_id")),
-            candidate_project_dir=_optional_string(result.get("candidate_project_dir")),
-            evaluation_summary=dict(result.get("eval") or {}),
-            error=None if result.get("ok") else _execution_error(result),
+            outcome = (
+                "completed"
+                if evaluation.status == CandidateEvaluationStatus.PASS
+                else "failed"
+            )
+    return CandidateExecution(
+        ok=(
+            evaluation is not None
+            and evaluation.status == CandidateEvaluationStatus.PASS
+        ),
+        outcome=outcome,
+        revision_id=_optional_string(result.get("revision_id")),
+        candidate_id=_optional_string(result.get("candidate_id")),
+        candidate_project_dir=_optional_string(result.get("candidate_project_dir")),
+        evaluation_summary=dict(result.get("eval") or {}),
+        evaluation=evaluation,
+        error=None if result.get("ok") else _execution_error(result),
         )
 
 

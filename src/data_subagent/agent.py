@@ -110,8 +110,8 @@ class DataSubagent:
                             final_error = execute.error or "Wren execute failed."
                             break
                         phase_started = time.perf_counter()
-                        answer, chart_spec, confidence = self.llm.summarize_result(
-                            question, sql, execute.rows
+                        answer, chart_spec, confidence = self.llm.summarize_result_with_context(
+                            question, sql, execute.rows, context
                         )
                         _add_timing(trace, "summarize", phase_started)
                         return self._finish(

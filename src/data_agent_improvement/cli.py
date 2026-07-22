@@ -30,19 +30,32 @@ from .models import (
     EvalTargetStatus,
     FeedbackType,
     GroupingMode,
+    JobTargetType,
     Provenance,
     ResultContract,
     RootCauseCandidate,
+    RoutingEvidence,
+    RoutingProposalStatus,
     SemanticConstraints,
     Sentiment,
 )
 from .report import render_triage_report
+from .routing import (
+    confirm_routing_proposal,
+    create_routing_decision,
+    create_routing_proposal,
+)
 from .store import ImprovementStore, new_report_id
 from .si2 import (
     execute_semantic_job,
     execute_semantic_job_development,
     prepare_semantic_job,
     verify_job_integrity,
+)
+from .si3 import (
+    execute_source_job_development,
+    prepare_source_job,
+    verify_source_job_integrity,
 )
 from .triage import (
     approve_eval_target,
@@ -184,6 +197,110 @@ def main() -> None:
     invalidate_target_parser.add_argument("--eval-target", required=True)
     invalidate_target_parser.add_argument("--reason", required=True)
 
+    create_proposal_parser = subparsers.add_parser(
+        "create-routing-proposal",
+        parents=[common],
+    )
+    create_proposal_parser.add_argument("--eval-target", required=True)
+    create_proposal_parser.add_argument(
+        "--target-type",
+        required=True,
+        choices=_enum_values(JobTargetType),
+    )
+    create_proposal_parser.add_argument(
+        "--evidence-json",
+        action="append",
+        required=True,
+        help="Proposed evidence JSON with evidence_type, evidence_id, and summary.",
+    )
+    create_proposal_parser.add_argument("--proposed-by", required=True)
+    create_proposal_parser.add_argument("--rationale", required=True)
+
+    list_proposals_parser = subparsers.add_parser(
+        "list-routing-proposals",
+        parents=[common],
+    )
+    list_proposals_parser.add_argument("--finding")
+    list_proposals_parser.add_argument("--eval-target")
+    list_proposals_parser.add_argument(
+        "--status",
+        choices=_enum_values(RoutingProposalStatus),
+    )
+    list_proposals_parser.add_argument(
+        "--target-type",
+        choices=_enum_values(JobTargetType),
+    )
+    list_proposals_parser.add_argument("--pretty", action="store_true")
+
+    show_proposal_parser = subparsers.add_parser(
+        "show-routing-proposal",
+        parents=[common],
+    )
+    show_proposal_parser.add_argument("--routing-proposal", required=True)
+    show_proposal_parser.add_argument("--pretty", action="store_true")
+
+    confirm_proposal_parser = subparsers.add_parser(
+        "confirm-routing-proposal",
+        parents=[common],
+    )
+    confirm_proposal_parser.add_argument("--routing-proposal", required=True)
+    confirm_proposal_parser.add_argument("--confirmed-by", required=True)
+    confirm_proposal_parser.add_argument("--rationale", required=True)
+    confirm_proposal_parser.add_argument(
+        "--project-routing-confirmed",
+        action="store_true",
+        help="Acknowledge explicit human review of this routing proposal.",
+    )
+
+    create_routing_parser = subparsers.add_parser(
+        "create-routing-decision",
+        parents=[common],
+    )
+    create_routing_parser.add_argument("--eval-target", required=True)
+    create_routing_parser.add_argument(
+        "--target-type",
+        required=True,
+        choices=_enum_values(JobTargetType),
+    )
+    create_routing_parser.add_argument(
+        "--evidence-json",
+        action="append",
+        required=True,
+        help=(
+            "Reviewed routing evidence JSON with evidence_type, evidence_id, "
+            "and summary."
+        ),
+    )
+    create_routing_parser.add_argument("--decided-by", required=True)
+    create_routing_parser.add_argument("--rationale", required=True)
+    create_routing_parser.add_argument(
+        "--project-routing-confirmed",
+        action="store_true",
+        help=(
+            "Trusted-local-admin compatibility shortcut: create a reviewed decision "
+            "without a stored RoutingProposal."
+        ),
+    )
+
+    list_routing_parser = subparsers.add_parser(
+        "list-routing-decisions",
+        parents=[common],
+    )
+    list_routing_parser.add_argument("--finding")
+    list_routing_parser.add_argument("--eval-target")
+    list_routing_parser.add_argument(
+        "--target-type",
+        choices=_enum_values(JobTargetType),
+    )
+    list_routing_parser.add_argument("--pretty", action="store_true")
+
+    show_routing_parser = subparsers.add_parser(
+        "show-routing-decision",
+        parents=[common],
+    )
+    show_routing_parser.add_argument("--routing-decision", required=True)
+    show_routing_parser.add_argument("--pretty", action="store_true")
+
     list_targets_parser = subparsers.add_parser("list-eval-targets", parents=[common])
     list_targets_parser.add_argument("--finding")
     list_targets_parser.add_argument("--status")
@@ -254,6 +371,44 @@ def main() -> None:
             "Acknowledge that host configuration/authentication is not externally "
             "isolated and cannot be used for release, CI, or Docker acceptance."
         ),
+    )
+
+    prepare_source_parser = subparsers.add_parser("prepare-source-job", parents=[common])
+    prepare_source_parser.add_argument("--eval-target", required=True)
+    prepare_source_parser.add_argument("--routing-decision", required=True)
+    prepare_source_parser.add_argument("--repository-root", default=".")
+    prepare_source_parser.add_argument("--base-ref", default="HEAD")
+    prepare_source_parser.add_argument("--allowed-path", action="append", required=True)
+    prepare_source_parser.add_argument("--forbidden-path", action="append", default=[])
+    prepare_source_parser.add_argument(
+        "--suite-command-json",
+        action="append",
+        required=True,
+        help=(
+            "Frozen JSON command object with name, args, optional timeout_seconds, "
+            "and non-secret environment. Supports {worktree} and {target_eval}."
+        ),
+    )
+    prepare_source_parser.add_argument("--risk-level", default="HIGH")
+    prepare_source_parser.add_argument("--target-repetitions", type=int, default=1)
+    prepare_source_parser.add_argument("--timeout-seconds", type=int, default=900)
+    prepare_source_parser.add_argument("--max-repair-rounds", type=int, default=2)
+
+    execute_source_dev_parser = subparsers.add_parser(
+        "execute-source-job-dev",
+        parents=[common],
+        description=(
+            "Development-only SI3 execution in a linked Git worktree. It creates "
+            "a local patch/PR candidate but no formal JobResult or release authority."
+        ),
+    )
+    execute_source_dev_parser.add_argument("--job", required=True)
+    execute_source_dev_parser.add_argument("--codex-bin", default="codex")
+    execute_source_dev_parser.add_argument("--codex-model")
+    execute_source_dev_parser.add_argument("--execute", action="store_true")
+    execute_source_dev_parser.add_argument(
+        "--acknowledge-host-session-development-only",
+        action="store_true",
     )
 
     prepare_docker_parser = subparsers.add_parser(
@@ -497,16 +652,126 @@ def main() -> None:
         )
         return
 
+    if args.command == "create-routing-proposal":
+        proposal = create_routing_proposal(
+            store=store,
+            eval_target_id=args.eval_target,
+            proposed_target_type=JobTargetType(args.target_type),
+            evidence=[
+                RoutingEvidence.from_dict(_parse_json_object(value))
+                for value in args.evidence_json
+            ],
+            proposed_by=args.proposed_by,
+            rationale=args.rationale,
+        )
+        _print_json(proposal.to_dict(), pretty=True)
+        return
+
+    if args.command == "list-routing-proposals":
+        proposals = store.list_routing_proposals(
+            finding_id=args.finding,
+            eval_target_id=args.eval_target,
+            status=args.status,
+            target_type=args.target_type,
+        )
+        _print_json([proposal.to_dict() for proposal in proposals], pretty=args.pretty)
+        return
+
+    if args.command == "show-routing-proposal":
+        _print_json(
+            store.get_routing_proposal(args.routing_proposal).to_dict(),
+            pretty=args.pretty,
+        )
+        return
+
+    if args.command == "confirm-routing-proposal":
+        if not args.project_routing_confirmed:
+            raise ValueError(
+                "confirm-routing-proposal requires --project-routing-confirmed. "
+                "The CLI records a human confirmation but does not authenticate the operator."
+            )
+        decision = confirm_routing_proposal(
+            store=store,
+            routing_proposal_id=args.routing_proposal,
+            confirmed_by=args.confirmed_by,
+            rationale=args.rationale,
+        )
+        _print_json(decision.to_dict(), pretty=True)
+        return
+
+    if args.command == "create-routing-decision":
+        if not args.project_routing_confirmed:
+            raise ValueError(
+                "create-routing-decision requires --project-routing-confirmed. "
+                "The CLI records a reviewed routing claim but does not authenticate "
+                "the operator."
+            )
+        decision = create_routing_decision(
+            store=store,
+            eval_target_id=args.eval_target,
+            target_type=JobTargetType(args.target_type),
+            evidence=[
+                RoutingEvidence.from_dict(_parse_json_object(value))
+                for value in args.evidence_json
+            ],
+            decided_by=args.decided_by,
+            rationale=args.rationale,
+        )
+        _print_json(decision.to_dict(), pretty=True)
+        return
+
+    if args.command == "list-routing-decisions":
+        decisions = store.list_routing_decisions(
+            finding_id=args.finding,
+            eval_target_id=args.eval_target,
+            target_type=args.target_type,
+        )
+        _print_json([decision.to_dict() for decision in decisions], pretty=args.pretty)
+        return
+
+    if args.command == "show-routing-decision":
+        _print_json(
+            store.get_routing_decision(args.routing_decision).to_dict(),
+            pretty=args.pretty,
+        )
+        return
+
     if args.command == "prepare-semantic-job":
         job = prepare_semantic_job(
             store=store,
             eval_target_id=args.eval_target,
+            routing_decision_id=args.routing_decision,
             base_candidate_id=args.base_candidate_id,
             base_snapshot_path=Path(args.base_snapshot_path),
             data_identity={
                 "schema_fingerprint": args.schema_fingerprint,
                 "snapshot_id": args.snapshot_id,
             },
+            risk_level=args.risk_level,
+            target_eval_repetitions=args.target_repetitions,
+            timeout_seconds=args.timeout_seconds,
+            max_repair_rounds=args.max_repair_rounds,
+        )
+        _print_json(job.to_dict(), pretty=True)
+        return
+
+    if args.command == "prepare-source-job":
+        from .source_plan import SourceEvaluationCommand
+
+        job = prepare_source_job(
+            store=store,
+            eval_target_id=args.eval_target,
+            repository_root=_project_scoped_path(
+                project_root,
+                Path(args.repository_root),
+            ),
+            base_ref=args.base_ref,
+            allowed_paths=args.allowed_path,
+            evaluation_commands=[
+                SourceEvaluationCommand.from_dict(_parse_json_object(value))
+                for value in args.suite_command_json
+            ],
+            forbidden_paths=args.forbidden_path,
             risk_level=args.risk_level,
             target_eval_repetitions=args.target_repetitions,
             timeout_seconds=args.timeout_seconds,
@@ -670,6 +935,40 @@ def main() -> None:
         _print_json(report, pretty=True)
         return
 
+    if args.command == "execute-source-job-dev":
+        if not args.execute:
+            raise ValueError(
+                "execute-source-job-dev requires the explicit --execute flag."
+            )
+        if not args.acknowledge_host_session_development_only:
+            raise ValueError(
+                "execute-source-job-dev requires "
+                "--acknowledge-host-session-development-only."
+            )
+        from .source_executor import (
+            CodexCliSourceExecutor,
+            CommandSourceCandidateEvaluator,
+        )
+        from .source_plan import load_source_evaluation_plan
+
+        job = store.get_job(args.job)
+        commands = load_source_evaluation_plan(
+            path=store.job_dir(job.job_id) / "control" / "source_evaluation_plan.json",
+            expected_sha256=str(job.data_identity.get("evaluation_plan_sha256") or ""),
+        )
+        report = execute_source_job_development(
+            store=store,
+            job_id=args.job,
+            executor=CodexCliSourceExecutor(
+                codex_bin=args.codex_bin,
+                codex_model=args.codex_model,
+                host_session_development=True,
+            ),
+            evaluator=CommandSourceCandidateEvaluator(commands),
+        )
+        _print_json(report, pretty=True)
+        return
+
     if args.command == "show-job":
         _print_json(store.get_job(args.job).to_dict(), pretty=args.pretty)
         return
@@ -680,7 +979,11 @@ def main() -> None:
 
     if args.command == "verify-job":
         job = store.get_job(args.job)
-        error = verify_job_integrity(store=store, job=job)
+        error = (
+            verify_source_job_integrity(store=store, job=job)
+            if job.target_type == JobTargetType.SOURCE_CODE
+            else verify_job_integrity(store=store, job=job)
+        )
         _print_json(
             {
                 "job_id": job.job_id,
@@ -762,6 +1065,16 @@ def _parse_expected_value(value: str | None) -> str | int | float | bool | None:
         return value
     if loaded is not None and not isinstance(loaded, (str, int, float, bool)):
         raise ValueError("expected-value must be a JSON scalar.")
+    return loaded
+
+
+def _parse_json_object(value: str) -> dict[str, Any]:
+    try:
+        loaded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Expected a JSON object: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise ValueError("Expected a JSON object.")
     return loaded
 
 

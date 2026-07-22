@@ -75,6 +75,7 @@ def revise_candidate(
     expected_base_version: int | None = None,
     requested_scope: list[str] | None = None,
     risk_level: RiskLevel = RiskLevel.MEDIUM,
+    release_eligible: bool = True,
     smoke_sql: str | None = None,
     execute_codex: bool = False,
     timeout_seconds: int = 60,
@@ -110,6 +111,7 @@ def revise_candidate(
         user_instruction=user_instruction,
         requested_scope=requested_scope,
         risk_level=risk_level,
+        release_eligible=release_eligible,
     )
     superseded_revision_id: str | None = None
     if base.revision_id:

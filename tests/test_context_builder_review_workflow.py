@@ -12,6 +12,7 @@ from data_subagent_context_builder.review_workflow import (
 )
 from data_subagent_context_builder.revision_store import (
     CandidateStatus,
+    InvalidTransitionError,
     ProvenanceType,
     ReviewPacket,
     RevisionStatus,
@@ -101,6 +102,46 @@ class ReviewWorkflowTest(unittest.TestCase):
             self.assertEqual(
                 store.get_published_context("sales")["candidate_id"],
                 first.candidate_id,
+            )
+
+    def test_development_only_candidate_cannot_be_approved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = RevisionStore(root / "registry")
+            base = store.create_candidate(context_id="sales", project_path=root / "base")
+            request, candidate = store.create_revision(
+                base_candidate_id=base.candidate_id,
+                user_instruction="DEVELOPMENT_ONLY candidate",
+                candidate_project_path=root / "candidate",
+                release_eligible=False,
+            )
+            _move_to_review(store, request.revision_id, candidate.candidate_id)
+            store.write_review_packet(
+                ReviewPacket(
+                    revision_id=request.revision_id,
+                    candidate_id=candidate.candidate_id,
+                    status=RevisionStatus.REVIEW_REQUIRED,
+                    summary="Development-only candidate.",
+                )
+            )
+
+            with self.assertRaisesRegex(InvalidTransitionError, "not release eligible"):
+                approve_candidate(
+                    registry_root=root / "registry",
+                    candidate_id=candidate.candidate_id,
+                    approval_note="Attempted approval.",
+                    store=store,
+                )
+            with self.assertRaisesRegex(InvalidTransitionError, "not release eligible"):
+                store.transition_candidate(candidate.candidate_id, CandidateStatus.APPROVED)
+
+            self.assertEqual(
+                store.get_candidate(candidate.candidate_id).status,
+                CandidateStatus.REVIEW_REQUIRED,
+            )
+            self.assertEqual(
+                store.get_revision(request.revision_id).status,
+                RevisionStatus.REVIEW_REQUIRED,
             )
 
 

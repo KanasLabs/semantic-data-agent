@@ -106,6 +106,21 @@ class EvalTargetStatus(str, Enum):
 
 class JobTargetType(str, Enum):
     WREN_CONTEXT = "WREN_CONTEXT"
+    SOURCE_CODE = "SOURCE_CODE"
+
+
+class RoutingProposalStatus(str, Enum):
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
+    DIAGNOSIS_REQUIRED = "DIAGNOSIS_REQUIRED"
+
+
+class RoutingEvidenceType(str, Enum):
+    CONTEXT_RULE_VERIFIED = "CONTEXT_RULE_VERIFIED"
+    GENERATED_SQL_VERIFIED = "GENERATED_SQL_VERIFIED"
+    SOURCE_CONTRACT_OWNERSHIP_VERIFIED = "SOURCE_CONTRACT_OWNERSHIP_VERIFIED"
+    SOURCE_REPRODUCTION = "SOURCE_REPRODUCTION"
+    POST_CONTEXT_FAILURE = "POST_CONTEXT_FAILURE"
+    STRUCTURAL_SOURCE_DEFECT = "STRUCTURAL_SOURCE_DEFECT"
 
 
 class JobStatus(str, Enum):
@@ -685,6 +700,177 @@ class EvalTarget:
 
 
 @dataclass(frozen=True)
+class RoutingEvidence:
+    evidence_type: RoutingEvidenceType
+    evidence_id: str
+    summary: str
+
+    def __post_init__(self) -> None:
+        _require_text("routing evidence_id", self.evidence_id)
+        _require_text("routing evidence summary", self.summary)
+
+    def to_dict(self) -> dict[str, Any]:
+        return _json_value(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RoutingEvidence":
+        return cls(
+            evidence_type=RoutingEvidenceType(data["evidence_type"]),
+            evidence_id=str(data["evidence_id"]),
+            summary=str(data["summary"]),
+        )
+
+
+@dataclass(frozen=True)
+class RoutingProposal:
+    schema_version: int
+    routing_proposal_id: str
+    finding_id: str
+    eval_target_id: str
+    proposed_target_type: JobTargetType
+    evidence: list[RoutingEvidence]
+    proposed_by: str
+    rationale: str
+    status: RoutingProposalStatus
+    validation_policy: str
+    validation_errors: list[str]
+    created_at: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != 1:
+            raise ValueError("RoutingProposal schema_version must be 1.")
+        validate_identifier(
+            "routing_proposal_id",
+            self.routing_proposal_id,
+            "routeproposal",
+            32,
+        )
+        validate_identifier("finding_id", self.finding_id, "finding", 32)
+        validate_identifier("eval_target_id", self.eval_target_id, "evaltarget", 32)
+        _require_text("routing proposed_by", self.proposed_by)
+        _require_text("routing rationale", self.rationale)
+        _require_text("routing validation_policy", self.validation_policy)
+        _validate_timestamp(self.created_at)
+        if not self.evidence:
+            raise ValueError("RoutingProposal requires at least one evidence item.")
+        identities = [
+            (item.evidence_type.value, item.evidence_id)
+            for item in self.evidence
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("RoutingProposal evidence items must be unique.")
+        _validate_text_list("routing validation_errors", self.validation_errors)
+        if (
+            self.status == RoutingProposalStatus.READY_FOR_REVIEW
+            and self.validation_errors
+        ):
+            raise ValueError("READY_FOR_REVIEW RoutingProposal cannot contain errors.")
+        if (
+            self.status == RoutingProposalStatus.DIAGNOSIS_REQUIRED
+            and not self.validation_errors
+        ):
+            raise ValueError("DIAGNOSIS_REQUIRED RoutingProposal requires errors.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return _json_value(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RoutingProposal":
+        return cls(
+            schema_version=int(data["schema_version"]),
+            routing_proposal_id=str(data["routing_proposal_id"]),
+            finding_id=str(data["finding_id"]),
+            eval_target_id=str(data["eval_target_id"]),
+            proposed_target_type=JobTargetType(data["proposed_target_type"]),
+            evidence=[
+                RoutingEvidence.from_dict(item)
+                for item in data.get("evidence", [])
+            ],
+            proposed_by=str(data["proposed_by"]),
+            rationale=str(data["rationale"]),
+            status=RoutingProposalStatus(data["status"]),
+            validation_policy=str(data["validation_policy"]),
+            validation_errors=[str(item) for item in data.get("validation_errors", [])],
+            created_at=str(data["created_at"]),
+        )
+
+
+@dataclass(frozen=True)
+class RoutingDecision:
+    schema_version: int
+    routing_decision_id: str
+    finding_id: str
+    eval_target_id: str
+    target_type: JobTargetType
+    evidence: list[RoutingEvidence]
+    decided_by: str
+    rationale: str
+    created_at: str
+    routing_proposal_id: str | None = None
+    routing_proposal_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.schema_version != 1:
+            raise ValueError("RoutingDecision schema_version must be 1.")
+        validate_identifier(
+            "routing_decision_id",
+            self.routing_decision_id,
+            "routing",
+            32,
+        )
+        validate_identifier("finding_id", self.finding_id, "finding", 32)
+        validate_identifier("eval_target_id", self.eval_target_id, "evaltarget", 32)
+        _require_text("routing decided_by", self.decided_by)
+        _require_text("routing rationale", self.rationale)
+        _validate_timestamp(self.created_at)
+        if (self.routing_proposal_id is None) != (self.routing_proposal_sha256 is None):
+            raise ValueError(
+                "RoutingDecision proposal ID and SHA-256 must either both be set or both be absent."
+            )
+        if self.routing_proposal_id is not None:
+            validate_identifier(
+                "routing_proposal_id",
+                self.routing_proposal_id,
+                "routeproposal",
+                32,
+            )
+            validate_sha256(
+                "routing_proposal_sha256",
+                self.routing_proposal_sha256 or "",
+            )
+        if not self.evidence:
+            raise ValueError("RoutingDecision requires at least one evidence item.")
+        identities = [
+            (item.evidence_type.value, item.evidence_id)
+            for item in self.evidence
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("RoutingDecision evidence items must be unique.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return _json_value(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RoutingDecision":
+        return cls(
+            schema_version=int(data["schema_version"]),
+            routing_decision_id=str(data["routing_decision_id"]),
+            finding_id=str(data["finding_id"]),
+            eval_target_id=str(data["eval_target_id"]),
+            target_type=JobTargetType(data["target_type"]),
+            evidence=[
+                RoutingEvidence.from_dict(item)
+                for item in data.get("evidence", [])
+            ],
+            decided_by=str(data["decided_by"]),
+            rationale=str(data["rationale"]),
+            created_at=str(data["created_at"]),
+            routing_proposal_id=data.get("routing_proposal_id"),
+            routing_proposal_sha256=data.get("routing_proposal_sha256"),
+        )
+
+
+@dataclass(frozen=True)
 class BoundedCodexTask:
     schema_version: int
     job_id: str
@@ -708,6 +894,7 @@ class BoundedCodexTask:
     network_access: bool
     status: JobStatus
     created_at: str
+    routing_decision_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != 1:
@@ -715,6 +902,13 @@ class BoundedCodexTask:
         validate_identifier("job_id", self.job_id, "job", 32)
         validate_identifier("finding_id", self.finding_id, "finding", 32)
         validate_identifier("eval_target_id", self.eval_target_id, "evaltarget", 32)
+        if self.routing_decision_id is not None:
+            validate_identifier(
+                "routing_decision_id",
+                self.routing_decision_id,
+                "routing",
+                32,
+            )
         validate_sha256("eval_target_sha256", self.eval_target_sha256)
         validate_sha256("evidence_manifest_sha256", self.evidence_manifest_sha256)
         _require_text("risk_level", self.risk_level)
@@ -734,7 +928,7 @@ class BoundedCodexTask:
         if self.max_repair_rounds < 0:
             raise ValueError("max_repair_rounds must not be negative.")
         if self.database_access or self.network_access:
-            raise ValueError("SI2 Codex tasks must not grant database or network access.")
+            raise ValueError("Improvement Codex tasks must not grant database or network access.")
 
     def to_dict(self) -> dict[str, Any]:
         return _json_value(self)
@@ -764,6 +958,7 @@ class BoundedCodexTask:
             network_access=bool(data["network_access"]),
             status=JobStatus(data["status"]),
             created_at=str(data["created_at"]),
+            routing_decision_id=data.get("routing_decision_id"),
         )
 
 
@@ -884,7 +1079,15 @@ def new_feedback_id() -> str:
 
 
 def new_record_id(prefix: str) -> str:
-    if prefix not in {"authority", "finding", "evaltarget", "isolation", "job"}:
+    if prefix not in {
+        "authority",
+        "finding",
+        "evaltarget",
+        "isolation",
+        "job",
+        "routing",
+        "routeproposal",
+    }:
         raise ValueError(f"Unsupported record prefix: {prefix!r}")
     return f"{prefix}_{uuid.uuid4().hex}"
 

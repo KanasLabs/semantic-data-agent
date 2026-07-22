@@ -8,6 +8,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from data_agent_improvement.evaluation import (
+    CandidateEvaluation,
+    CandidateEvaluationReason,
+    CandidateEvaluationStatus,
+)
 from data_agent_improvement.models import (
     Actor,
     ActorType,
@@ -24,10 +29,13 @@ from data_agent_improvement.models import (
     FailurePhase,
     GroupingMode,
     JobStatus,
+    JobTargetType,
     ObservedCorrection,
     Provenance,
     ResultContract,
     RootCauseCandidate,
+    RoutingEvidence,
+    RoutingEvidenceType,
     SemanticConstraints,
     Sentiment,
     Signal,
@@ -46,8 +54,13 @@ from data_agent_improvement.si2 import (
     CandidateExecution,
     execute_semantic_job,
     execute_semantic_job_development,
-    prepare_semantic_job,
+    prepare_semantic_job as _prepare_semantic_job_impl,
     verify_job_integrity,
+)
+from data_agent_improvement.routing import (
+    confirm_routing_proposal,
+    create_routing_decision,
+    create_routing_proposal,
 )
 from data_agent_improvement.store import ImprovementStore, RecordNotFoundError
 from data_agent_improvement.triage import (
@@ -73,9 +86,30 @@ class ImprovementSi2Test(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)
             store, target_id, base_snapshot = _frozen_target(root)
-            job = prepare_semantic_job(
+            proposal = create_routing_proposal(
                 store=store,
                 eval_target_id=target_id,
+                proposed_target_type=JobTargetType.WREN_CONTEXT,
+                evidence=[
+                    RoutingEvidence(
+                        RoutingEvidenceType.CONTEXT_RULE_VERIFIED,
+                        "context-candidate-route",
+                        "The proposed route assigns this finding to the Context layer.",
+                    )
+                ],
+                proposed_by="codex-cli",
+                rationale="The semantic gap should first be repaired in Context.",
+            )
+            routing = confirm_routing_proposal(
+                store=store,
+                routing_proposal_id=proposal.routing_proposal_id,
+                confirmed_by="test-reviewer",
+                rationale="Reviewed evidence supports SI2.",
+            )
+            job = _prepare_semantic_job_impl(
+                store=store,
+                eval_target_id=target_id,
+                routing_decision_id=routing.routing_decision_id,
                 base_candidate_id="candidate_" + "1" * 32,
                 base_snapshot_path=base_snapshot,
             )
@@ -87,7 +121,9 @@ class ImprovementSi2Test(unittest.TestCase):
                 r"^sha256:[0-9a-f]{64}$",
             )
             self.assertIsNone(verify_job_integrity(store=store, job=job))
+            self.assertIsNotNone(job.routing_decision_id)
             evidence_dir = store.job_dir(job.job_id) / "evidence"
+            self.assertTrue((evidence_dir / "routing_decision.json").is_file())
             combined = "\n".join(
                 path.read_text(encoding="utf-8")
                 for path in evidence_dir.iterdir()
@@ -147,6 +183,70 @@ class ImprovementSi2Test(unittest.TestCase):
                 store.get_isolation_receipt(job.job_id).job_id,
                 job.job_id,
             )
+            self.assertEqual(
+                result.evaluation_summary["candidate_evaluation"]["status"],
+                CandidateEvaluationStatus.PASS.value,
+            )
+
+    def test_failed_evaluation_maps_to_failed_job(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "a" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            result = execute_semantic_job(
+                store=store,
+                job_id=job.job_id,
+                executor=FakeExecutor(evaluation=_failed_evaluation()),
+                **_isolation_arguments(job),
+            )
+
+            self.assertEqual(result.status, CandidateResultStatus.FAIL)
+            self.assertEqual(store.get_job(job.job_id).status, JobStatus.FAILED)
+
+    def test_infrastructure_block_maps_to_inconclusive_job(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "b" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            result = execute_semantic_job(
+                store=store,
+                job_id=job.job_id,
+                executor=FakeExecutor(evaluation=_infrastructure_evaluation()),
+                **_isolation_arguments(job),
+            )
+
+            self.assertEqual(result.status, CandidateResultStatus.INCONCLUSIVE)
+            self.assertEqual(store.get_job(job.job_id).status, JobStatus.INCONCLUSIVE)
+
+    def test_invalid_target_block_maps_to_eval_target_invalid_job(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            store, target_id, base_snapshot = _frozen_target(Path(temporary_dir))
+            job = prepare_semantic_job(
+                store=store,
+                eval_target_id=target_id,
+                base_candidate_id="candidate_" + "c" * 32,
+                base_snapshot_path=base_snapshot,
+            )
+            result = execute_semantic_job(
+                store=store,
+                job_id=job.job_id,
+                executor=FakeExecutor(evaluation=_invalid_target_evaluation()),
+                **_isolation_arguments(job),
+            )
+
+            self.assertEqual(result.status, CandidateResultStatus.EVAL_TARGET_INVALID)
+            self.assertEqual(
+                store.get_job(job.job_id).status,
+                JobStatus.EVAL_TARGET_INVALID,
+            )
 
     def test_development_execution_keeps_formal_job_prepared(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -168,6 +268,10 @@ class ImprovementSi2Test(unittest.TestCase):
             self.assertFalse(report["isolation_receipt_used"])
             self.assertFalse(report["release_eligible"])
             self.assertEqual(report["candidate_status"], CandidateResultStatus.PASS.value)
+            self.assertEqual(
+                report["candidate_evaluation"]["status"],
+                CandidateEvaluationStatus.PASS.value,
+            )
             self.assertEqual(report["job_status_after"], JobStatus.PREPARED.value)
             self.assertEqual(store.get_job(job.job_id).status, JobStatus.PREPARED)
             self.assertIn("DEVELOPMENT_ONLY", executor.instruction)
@@ -361,22 +465,83 @@ class ImprovementSi2Test(unittest.TestCase):
             self.assertEqual(runner.approval_policy, "never")
 
 
+def prepare_semantic_job(*, store, eval_target_id, **kwargs):
+    routing = create_routing_decision(
+        store=store,
+        eval_target_id=eval_target_id,
+        target_type=JobTargetType.WREN_CONTEXT,
+        evidence=[
+            RoutingEvidence(
+                RoutingEvidenceType.CONTEXT_RULE_VERIFIED,
+                "context-candidate-route",
+                "The reviewed route assigns this finding to the Context layer.",
+            )
+        ],
+        decided_by="test-reviewer",
+        rationale="The fixture exercises the SI2 candidate path.",
+    )
+    return _prepare_semantic_job_impl(
+        store=store,
+        eval_target_id=eval_target_id,
+        routing_decision_id=routing.routing_decision_id,
+        **kwargs,
+    )
+
+
 class FakeExecutor:
-    def __init__(self) -> None:
+    def __init__(self, evaluation: CandidateEvaluation | None = None) -> None:
         self.called = False
         self.instruction = ""
+        self.evaluation = evaluation or _passing_evaluation()
 
     def execute(self, *, job, instruction, target_eval_path):
         self.called = True
         self.instruction = instruction
         return CandidateExecution(
-            ok=True,
+            ok=self.evaluation.status == CandidateEvaluationStatus.PASS,
             outcome="completed",
             revision_id="revision_test",
             candidate_id="candidate_test",
             candidate_project_dir=str(target_eval_path.parent / "candidate"),
             evaluation_summary={"ok": True},
+            evaluation=self.evaluation,
         )
+
+
+def _passing_evaluation() -> CandidateEvaluation:
+    return CandidateEvaluation(
+        schema_version=1,
+        status=CandidateEvaluationStatus.PASS,
+        reason=CandidateEvaluationReason.ACCEPTANCE_PASSED,
+        message="Candidate passed all required evaluation suites.",
+    )
+
+
+def _failed_evaluation() -> CandidateEvaluation:
+    return CandidateEvaluation(
+        schema_version=1,
+        status=CandidateEvaluationStatus.FAIL,
+        reason=CandidateEvaluationReason.ASSERTION_FAILED,
+        message="Candidate failed a frozen assertion.",
+    )
+
+
+def _infrastructure_evaluation() -> CandidateEvaluation:
+    return CandidateEvaluation(
+        schema_version=1,
+        status=CandidateEvaluationStatus.BLOCKED,
+        reason=CandidateEvaluationReason.INFRASTRUCTURE_UNAVAILABLE,
+        message="Evaluation infrastructure is unavailable.",
+    )
+
+
+def _invalid_target_evaluation() -> CandidateEvaluation:
+    return CandidateEvaluation(
+        schema_version=1,
+        status=CandidateEvaluationStatus.BLOCKED,
+        reason=CandidateEvaluationReason.EVAL_TARGET_INVALID,
+        message="The frozen EvalTarget is invalid.",
+    )
 
 
 def _isolation_receipt(job):

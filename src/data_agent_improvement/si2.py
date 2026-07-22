@@ -9,6 +9,11 @@ from typing import Any, Protocol
 
 from data_subagent.trace_identity import fingerprint_wren_project
 
+from .evaluation import (
+    CandidateEvaluation,
+    CandidateEvaluationReason,
+    CandidateEvaluationStatus,
+)
 from .isolation import verify_isolation_receipt
 from .models import (
     BoundedCodexTask,
@@ -20,6 +25,7 @@ from .models import (
     JobTargetType,
     new_record_id,
 )
+from .routing import require_routing_decision, routing_decision_sha256
 from .store import ImprovementStore
 from .triage import eval_target_content_sha256, require_finding_authority
 
@@ -32,6 +38,7 @@ class CandidateExecution:
     candidate_id: str | None = None
     candidate_project_dir: str | None = None
     evaluation_summary: dict[str, Any] | None = None
+    evaluation: CandidateEvaluation | None = None
     error: str | None = None
 
 
@@ -58,6 +65,7 @@ def prepare_semantic_job(
     *,
     store: ImprovementStore,
     eval_target_id: str,
+    routing_decision_id: str,
     base_candidate_id: str,
     base_snapshot_path: Path,
     data_identity: dict[str, str | None] | None = None,
@@ -74,6 +82,13 @@ def prepare_semantic_job(
         raise ValueError("Frozen EvalTarget hash does not match its acceptance content.")
     finding = store.get_finding(target.finding_id)
     require_finding_authority(store, finding)
+    routing_decision = require_routing_decision(
+        store=store,
+        routing_decision_id=routing_decision_id,
+        finding_id=finding.finding_id,
+        eval_target_id=target.eval_target_id,
+        expected_target_type=JobTargetType.WREN_CONTEXT,
+    )
     resolved_base = base_snapshot_path.resolve()
     if not resolved_base.is_dir():
         raise FileNotFoundError(f"Base candidate snapshot not found: {resolved_base}")
@@ -85,6 +100,8 @@ def prepare_semantic_job(
         job_id=job_id,
         target=target,
         finding=finding,
+        eval_namespace="si2",
+        additional_records={"routing_decision.json": routing_decision.to_dict()},
     )
     manifest_path = evidence_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -97,6 +114,9 @@ def prepare_semantic_job(
     if not resolved_data_identity.get("schema_fingerprint"):
         raise ValueError("SI2 requires a fingerprintable Wren base snapshot.")
     resolved_data_identity.setdefault("snapshot_id", None)
+    resolved_data_identity["routing_decision_sha256"] = routing_decision_sha256(
+        routing_decision
+    )
     task = BoundedCodexTask(
         schema_version=1,
         job_id=job_id,
@@ -120,6 +140,7 @@ def prepare_semantic_job(
         network_access=False,
         status=JobStatus.PREPARED,
         created_at=_utc_now(),
+        routing_decision_id=routing_decision.routing_decision_id,
     )
     store.create_job(task)
     if not target_eval_path.is_file():
@@ -265,7 +286,7 @@ def execute_semantic_job(
         revision_id=execution.revision_id,
         candidate_id=execution.candidate_id,
         candidate_project_dir=execution.candidate_project_dir,
-        evaluation_summary=dict(execution.evaluation_summary or {}),
+        evaluation_summary=_evaluation_summary(execution),
         error=execution.error,
         completed_at=_utc_now(),
     )
@@ -295,6 +316,23 @@ def verify_job_integrity(
     content_hash = eval_target_content_sha256(target)
     if content_hash != job.eval_target_sha256 or target.frozen_sha256 != content_hash:
         return "EvalTarget content/hash changed after job preparation."
+    if job.target_type == JobTargetType.WREN_CONTEXT:
+        if not job.routing_decision_id:
+            return "Semantic Job does not identify a RoutingDecision."
+        try:
+            routing_decision = require_routing_decision(
+                store=store,
+                routing_decision_id=job.routing_decision_id,
+                finding_id=job.finding_id,
+                eval_target_id=job.eval_target_id,
+                expected_target_type=JobTargetType.WREN_CONTEXT,
+            )
+        except ValueError as exc:
+            return str(exc)
+        if routing_decision_sha256(routing_decision) != job.data_identity.get(
+            "routing_decision_sha256"
+        ):
+            return "RoutingDecision content/hash changed after Job preparation."
     evidence_dir = store.job_dir(job.job_id) / "evidence"
     manifest_path = evidence_dir / "manifest.json"
     try:
@@ -330,6 +368,7 @@ def build_semantic_job_instruction(
             "This is a bounded SI2 Wren Context candidate task.",
             "",
             f"Job ID: {job.job_id}",
+            f"Reviewed RoutingDecision: {job.routing_decision_id}",
             f"Frozen EvalTarget SHA-256: {job.eval_target_sha256}",
             f"Read-only evidence bundle: {evidence_dir.resolve()}",
             "",
@@ -358,6 +397,8 @@ def _package_evidence(
     job_id: str,
     target: Any,
     finding: Any,
+    eval_namespace: str,
+    additional_records: dict[str, dict[str, Any]] | None = None,
 ) -> Path:
     case_records = [store.get_case(case_id).to_dict() for case_id in finding.case_ids]
     feedback_records = [
@@ -387,9 +428,18 @@ def _package_evidence(
     target_eval_path = store.write_job_text_artifact(
         job_id,
         Path("evidence/target_eval.jsonl"),
-        json.dumps(_target_eval_case(target), ensure_ascii=False),
+        json.dumps(
+            _target_eval_case(target, eval_namespace=eval_namespace),
+            ensure_ascii=False,
+        ),
     )
     artifacts.append(target_eval_path)
+    for name, record in sorted((additional_records or {}).items()):
+        if Path(name).name != name or not name.endswith(".json"):
+            raise ValueError("Additional evidence record names must be JSON basenames.")
+        artifacts.append(
+            store.write_job_artifact(job_id, Path("evidence") / name, record)
+        )
     evidence_dir = store.job_dir(job_id) / "evidence"
     manifest = {
         "schema_version": 1,
@@ -411,11 +461,11 @@ def _package_evidence(
     return target_eval_path
 
 
-def _target_eval_case(target: Any) -> dict[str, Any]:
+def _target_eval_case(target: Any, *, eval_namespace: str) -> dict[str, Any]:
     case: dict[str, Any] = {
-        "eval_id": f"si2_{target.eval_target_id[-12:]}",
+        "eval_id": f"{eval_namespace}_{target.eval_target_id[-12:]}",
         "question": target.question,
-        "dataset": "si2_frozen_target",
+        "dataset": f"{eval_namespace}_frozen_target",
         "db_id": "candidate_context",
         "expected_status": "success",
         "expected_answer_contains": list(target.semantic_constraints.required_units),
@@ -473,7 +523,10 @@ def _development_report(
         "revision_id": execution.revision_id,
         "candidate_id": execution.candidate_id,
         "candidate_project_dir": execution.candidate_project_dir,
-        "evaluation_summary": dict(execution.evaluation_summary or {}),
+        "candidate_evaluation": (
+            execution.evaluation.to_dict() if execution.evaluation is not None else None
+        ),
+        "evaluation_summary": _evaluation_summary(execution),
         "error": execution.error,
         "job_status_after": JobStatus.PREPARED.value,
         "warning": DEVELOPMENT_ONLY_WARNING,
@@ -489,7 +542,22 @@ def _result_status(execution: CandidateExecution) -> CandidateResultStatus:
         return CandidateResultStatus.EVAL_TARGET_INVALID
     if normalized == "inconclusive":
         return CandidateResultStatus.INCONCLUSIVE
+    if execution.evaluation is not None:
+        if execution.evaluation.status == CandidateEvaluationStatus.PASS:
+            return CandidateResultStatus.PASS
+        if execution.evaluation.status == CandidateEvaluationStatus.FAIL:
+            return CandidateResultStatus.FAIL
+        if execution.evaluation.reason == CandidateEvaluationReason.EVAL_TARGET_INVALID:
+            return CandidateResultStatus.EVAL_TARGET_INVALID
+        return CandidateResultStatus.INCONCLUSIVE
     return CandidateResultStatus.PASS if execution.ok else CandidateResultStatus.FAIL
+
+
+def _evaluation_summary(execution: CandidateExecution) -> dict[str, Any]:
+    summary = dict(execution.evaluation_summary or {})
+    if execution.evaluation is not None:
+        summary["candidate_evaluation"] = execution.evaluation.to_dict()
+    return summary
 
 
 def _integrity_status(error: str) -> CandidateResultStatus:
