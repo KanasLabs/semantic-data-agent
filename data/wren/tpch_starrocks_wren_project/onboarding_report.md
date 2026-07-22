@@ -7,8 +7,8 @@ Generated at: 2026-07-14T05:08:28.055643+00:00
 - Status: OK
 - Project name: `tpch_starrocks`
 - Source: `existing_wren_project`
-- Wren project: `<project-root>\data\wren\tpch_starrocks_wren_project`
-- Wren home: `<project-root>\data\wren\home`
+- Wren project: `data\wren\tpch_starrocks_wren_project`
+- Wren home: `data\wren\home`
 - Models: 8
 - Relationships: 8
 
@@ -42,7 +42,7 @@ stderr:
 args: context build
 returncode: 0
 stdout:
-Built: 8 models, 0 views → <project-root>\data\wren\tpch_starrocks_wren_project\target\mdl.json
+Built: 8 models, 0 views → data\wren\tpch_starrocks_wren_project\target\mdl.json
 
 Next: wren --sql 'SELECT ...' to query your data.
 stderr:

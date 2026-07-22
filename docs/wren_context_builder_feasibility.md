@@ -198,7 +198,7 @@ data/wren/home
 Command:
 
 ```powershell
-$env:WREN_HOME='<project-root>\data\wren\home'
+$env:WREN_HOME = (Resolve-Path 'data\wren\home').Path
 $env:PYTHONIOENCODING='utf-8'
 .\.venv-wren\Scripts\wren.exe context validate
 ```
@@ -220,7 +220,7 @@ stg_payments
 Command:
 
 ```powershell
-$env:WREN_HOME='<project-root>\data\wren\home'
+$env:WREN_HOME = (Resolve-Path 'data\wren\home').Path
 .\.venv-wren\Scripts\wren.exe context build
 ```
 
@@ -233,7 +233,7 @@ Built: 5 models, 0 views -> data/wren/jaffle_wren_project/target/mdl.json
 Command:
 
 ```powershell
-$env:WREN_HOME='<project-root>\data\wren\home'
+$env:WREN_HOME = (Resolve-Path 'data\wren\home').Path
 .\.venv-wren\Scripts\wren.exe dry-run --sql "select count(*) as order_count from orders"
 ```
 

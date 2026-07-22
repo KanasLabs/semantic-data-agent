@@ -25,7 +25,7 @@ Wren 的职责是语义层、MDL、memory、SQL 转译、dry-run 和查询执行
 LLM provider 使用 DeepSeek。本地 API key 文件为：
 
 ```text
-<project-root>\deepseek_apikey.txt
+deepseek_apikey.txt
 ```
 
 该文件只作为本地 secret 使用，不进入 trace、日志或版本化文档内容。
