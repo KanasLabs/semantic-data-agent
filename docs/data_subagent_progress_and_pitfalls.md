@@ -10,6 +10,29 @@ but current.
 The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
 Builder implementation.
 
+### Public-history privacy preparation
+
+Prepared a privacy-safe Git history on 2026-07-22 before any repository
+visibility change. The rewrite normalized commit author and committer identity
+to the GitHub noreply address and removed user-specific workspace paths from
+all 19 commits. A complete pre-rewrite mirror is retained only under the local,
+Git-ignored `data/tmp/` backup area.
+
+Removed generated Context Builder last-message and validation-output files that
+captured local execution paths. `.gitignore` now excludes those onboarding
+artifact directories so future local runs do not stage them accidentally.
+
+Verification in the isolated rewritten clone:
+
+```text
+commit identity scan: GitHub noreply only
+current privacy-pattern scan: 0 matching files
+full-history privacy-pattern scan: 0 matching files
+full-history high-confidence credential scan: 0 matching files
+full unit suite: 175 passed
+git diff --check: passed
+```
+
 ### Repository documentation and secret-scan hygiene
 
 Prepared a repository hygiene update on 2026-07-22. Added a root `README.md`
