@@ -33,6 +33,12 @@ full unit suite: 175 passed
 git diff --check: passed
 ```
 
+GitHub caveat: force-pushing branches does not rewrite GitHub-managed
+`refs/pull/*` for already merged pull requests. The old PR head references are
+not writable through normal Git pushes. Do not treat the existing repository as
+fully scrubbed for a visibility change until GitHub Support removes those
+references, or a fresh repository is created from the cleaned history.
+
 ### Repository documentation and secret-scan hygiene
 
 Prepared a repository hygiene update on 2026-07-22. Added a root `README.md`
