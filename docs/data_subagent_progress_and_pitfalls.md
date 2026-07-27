@@ -41,6 +41,19 @@ present. `.gitleaks.toml` keeps the default rules and adds one line-level regex
 allowlist limited to those two field names and the exact 64-hex hash format. It
 does not exclude the snapshot file or weaken scanning for other values.
 
+Publication verification:
+
+```text
+public repository: https://github.com/appodd/semantic-data-agent
+anonymous GitHub API access: HTTP 200
+anonymous single-branch clone: passed
+public heads: master only
+GitHub license detection: MIT
+Gitleaks rerun with precise hash allowlist: passed
+anonymous-clone privacy-pattern scan: 0 matching files
+private pre-public archive: retained and read-only
+```
+
 ### Public-history privacy preparation
 
 Prepared a privacy-safe Git history on 2026-07-22 before any repository
