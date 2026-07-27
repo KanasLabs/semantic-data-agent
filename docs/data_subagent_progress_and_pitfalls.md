@@ -33,6 +33,14 @@ required license/notice files: present
 git diff --check: passed
 ```
 
+The first Gitleaks run in the fresh public repository reported two
+`generic-api-key` false positives in the BIRD discovery snapshot. Both values
+are 64-character hexadecimal integrity hashes under
+`single_key_check_hash` and `composite_key_check_hash`; no credential was
+present. `.gitleaks.toml` keeps the default rules and adds one line-level regex
+allowlist limited to those two field names and the exact 64-hex hash format. It
+does not exclude the snapshot file or weaken scanning for other values.
+
 ### Public-history privacy preparation
 
 Prepared a privacy-safe Git history on 2026-07-22 before any repository
