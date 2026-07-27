@@ -34,12 +34,14 @@ git diff --check: passed
 ```
 
 The first Gitleaks run in the fresh public repository reported two
-`generic-api-key` false positives in the BIRD discovery snapshot. Both values
-are 64-character hexadecimal integrity hashes under
-`single_key_check_hash` and `composite_key_check_hash`; no credential was
-present. `.gitleaks.toml` keeps the default rules and adds one line-level regex
-allowlist limited to those two field names and the exact 64-hex hash format. It
-does not exclude the snapshot file or weaken scanning for other values.
+`generic-api-key` false positives in the BIRD discovery snapshot. Direct
+full-history CLI scanning then identified another 16 generated TPC-H schema and
+discovery hashes. All 18 values are 64-character hexadecimal integrity hashes
+under the exact fields `single_key_check_hash`, `composite_key_check_hash`,
+`key_profile`, or `ddl`; no credential was present. `.gitleaks.toml` keeps the
+default rules and uses the v8.24.3 global `[allowlist]` syntax with one
+line-level regex limited to those four field names and the exact 64-hex format.
+It does not exclude either snapshot file or weaken scanning for other values.
 
 Publication verification:
 

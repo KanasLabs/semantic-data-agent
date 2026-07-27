@@ -3,9 +3,9 @@ title = "semantic-data-agent gitleaks configuration"
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Generated discovery integrity hashes whose field names contain key"
+[allowlist]
+description = "Generated discovery and schema integrity hashes"
 regexTarget = "line"
 regexes = [
-  '''"(?:single_key_check_hash|composite_key_check_hash)"\s*:\s*"[0-9a-f]{64}"''',
+  '''"(?:single_key_check_hash|composite_key_check_hash|key_profile|ddl)"\s*:\s*"[0-9a-f]{64}"''',
 ]
