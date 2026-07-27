@@ -2,6 +2,10 @@
 
 This directory stores JSONL eval case definitions for the Data Subagent.
 
+Some cases are adapted from third-party benchmarks. In particular, committed
+BIRD Mini-Dev cases and audits remain under CC BY-SA 4.0 and are not relicensed
+under the repository's MIT license. See [`../../../THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md).
+
 Current suite:
 
 ```text

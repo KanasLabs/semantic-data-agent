@@ -84,6 +84,10 @@ $env:PYTHONPATH='src'
 - Pull Request 和 `master` 分支推送会运行 Gitleaks；它是额外防线，不能替代提交前人工检查。
 - 当前样例数据和 TPCH discovery 内容为演示数据。接入真实数据源时，应只保留必要的 schema 信息，并对样例值、查询结果和标识符进行脱敏。
 
+## License
+
+项目原创代码和文档采用 [MIT License](LICENSE)。BIRD Mini-Dev 衍生评测材料、jaffle_shop 演示来源和 TPC-H 名称等第三方内容不因本项目许可证而重新授权，详情见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
 ## 限制
 
 - 项目尚未提供从零创建 `.venv-wren` 的统一依赖安装脚本。

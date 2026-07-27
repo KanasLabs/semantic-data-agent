@@ -1,6 +1,6 @@
 # Data Subagent Progress And Pitfalls
 
-Last updated: 2026-07-22
+Last updated: 2026-07-27
 
 This document is the project memory for future Codex sessions. Keep it concise
 but current.
@@ -9,6 +9,29 @@ but current.
 
 The project has a runnable Data Subagent MVP and a runnable first WrenAI Context
 Builder implementation.
+
+### Public repository release preparation
+
+Prepared the cleaned-history candidate for a fresh public repository on
+2026-07-27. Added an MIT license for original project code and documentation,
+plus `THIRD_PARTY_NOTICES.md` to keep BIRD Mini-Dev adaptations under CC BY-SA
+4.0 and identify the jaffle_shop and TPC-H demo sources. Updated the public
+documentation index and eval-case README to make those boundaries explicit.
+
+The existing repository remains the private archive because GitHub-managed
+merged-PR references retain pre-rewrite commits. The public repository is
+created from the cleaned `master` history rather than by changing the archive's
+visibility.
+
+Public-candidate verification:
+
+```text
+full unit suite: 175 passed
+current privacy-pattern scan: 0 matching files
+current high-confidence credential scan: 0 matching files
+required license/notice files: present
+git diff --check: passed
+```
 
 ### Public-history privacy preparation
 
@@ -44,9 +67,9 @@ references, or a fresh repository is created from the cleaned history.
 Prepared a repository hygiene update on 2026-07-22. Added a root `README.md`
 for the three workstreams and a curated `docs/README.md` index that separates
 reviewable architecture/setup documentation from internal engineering memory.
-The current Private repository keeps both categories under version control;
-the engineering-memory document requires another privacy and relevance review
-before any future public release.
+The repository keeps both categories under version control. The engineering
+memory was reviewed for privacy before public release and remains subject to
+the documentation safety rules in `docs/README.md`.
 
 Removed user-specific absolute Windows paths from tracked documentation and the
 TPC-H onboarding report. Added a GitHub Actions Gitleaks workflow for pushes to
