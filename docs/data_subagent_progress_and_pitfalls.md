@@ -54,6 +54,15 @@ anonymous-clone privacy-pattern scan: 0 matching files
 private pre-public archive: retained and read-only
 ```
 
+The public repository is also mirrored at
+`https://github.com/KanasLabs/semantic-data-agent`. The first organization run
+showed that `gitleaks-action@v2` requires a commercial license for repositories
+owned by an organization even though the Gitleaks CLI is open source. The
+workflow now installs the pinned `v8.24.3` CLI from the official GitHub release,
+verifies the release archive against the published SHA-256 checksum file, and
+scans the full Git history directly. This keeps identical secret scanning in
+the personal and organization repositories without a commercial Action key.
+
 ### Public-history privacy preparation
 
 Prepared a privacy-safe Git history on 2026-07-22 before any repository
